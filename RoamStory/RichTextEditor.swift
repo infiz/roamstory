@@ -351,52 +351,18 @@ struct RichTextEditor: UIViewRepresentable {
             )
             guard originalSnapshot.differs(from: currentSnapshot) else { return }
 
-            withoutAutomaticUndoRegistration {
+            if let undoManager = modelContext.undoManager {
+                undoManager.beginUndoGrouping()
+                block.text = currentSnapshot.text
+                block.attributedTextData = currentSnapshot.attributedTextData
+                onChange()
+                undoManager.endUndoGrouping()
+                undoManager.setActionName("Edit Text")
+            } else {
                 block.text = currentSnapshot.text
                 block.attributedTextData = currentSnapshot.attributedTextData
                 onChange()
             }
-
-            guard let undoManager = modelContext.undoManager else { return }
-
-            undoManager.registerUndo(withTarget: self) { coordinator in
-                coordinator.restore(originalSnapshot)
-            }
-            undoManager.setActionName("Edit Text")
-        }
-
-        private func restore(_ snapshot: TextSnapshot) {
-            commitPendingUndo()
-            let inverseSnapshot = self.snapshot(of: block)
-            withoutAutomaticUndoRegistration {
-                block.text = snapshot.text
-                block.attributedTextData = snapshot.attributedTextData
-                if let textView = controller.textView {
-                    textView.attributedText = Self.decode(snapshot)
-                    textView.typingAttributes = textView.attributedText.length > 0
-                        ? textView.attributedText.attributes(at: textView.attributedText.length - 1, effectiveRange: nil)
-                        : textView.typingAttributes
-                }
-                onChange()
-            }
-
-            if let undoManager = modelContext.undoManager {
-                undoManager.registerUndo(withTarget: self) { coordinator in
-                    coordinator.restore(inverseSnapshot)
-                }
-                undoManager.setActionName("Edit Text")
-            }
-        }
-
-        private func withoutAutomaticUndoRegistration(_ changes: () -> Void) {
-            guard let undoManager = modelContext.undoManager,
-                  undoManager.isUndoRegistrationEnabled else {
-                changes()
-                return
-            }
-            undoManager.disableUndoRegistration()
-            changes()
-            undoManager.enableUndoRegistration()
         }
 
         private static func archive(_ attributedText: NSAttributedString) -> Data? {
@@ -406,16 +372,6 @@ struct RichTextEditor: UIViewRepresentable {
             )
         }
 
-        private static func decode(_ snapshot: TextSnapshot) -> NSAttributedString {
-            if let data = snapshot.attributedTextData,
-               let decoded = try? NSKeyedUnarchiver.unarchivedObject(
-                   ofClass: NSAttributedString.self,
-                   from: data
-               ) {
-                return decoded
-            }
-            return NSAttributedString(string: snapshot.text)
-        }
     }
 
     private func decodedAttributedText(for block: ContentBlock) -> NSAttributedString {
