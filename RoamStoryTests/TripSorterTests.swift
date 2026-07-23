@@ -100,6 +100,25 @@ final class TripSorterTests: XCTestCase {
         )
     }
 
+    func testGalleryStoresTitleAndCaptionsForIndividualPhotos() {
+        let photo = MediaReference(
+            localIdentifier: "temple",
+            kind: .image,
+            caption: "Lanterns beside the temple gate"
+        )
+        let gallery = ContentBlock(
+            type: .gallery,
+            title: "Evening in Kyoto",
+            mediaReferences: [photo]
+        )
+
+        XCTAssertEqual(gallery.title, "Evening in Kyoto")
+        XCTAssertEqual(
+            gallery.orderedMediaReferences.first?.caption,
+            "Lanterns beside the temple gate"
+        )
+    }
+
     func testMovesBlocksToExactDividerInsertionPoints() {
         let first = ContentBlock(type: .paragraph, sortIndex: 0, text: "First")
         let second = ContentBlock(type: .paragraph, sortIndex: 1, text: "Second")
@@ -244,7 +263,7 @@ final class TripSorterTests: XCTestCase {
     }
 
     @MainActor
-    func testBlockAddDeleteAndDescriptionChangesSupportUndoAndRedo() throws {
+    func testBlockAddDeleteAndCaptionChangesSupportUndoAndRedo() throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
             for: Trip.self,
@@ -281,14 +300,14 @@ final class TripSorterTests: XCTestCase {
         XCTAssertEqual(section.blocks.count, 1)
 
         undoManager.beginUndoGrouping()
-        block.descriptionText = "Temple at sunset"
+        block.caption = "Temple at sunset"
         section.touch()
         undoManager.endUndoGrouping()
 
         undoManager.undo()
-        XCTAssertEqual(block.descriptionText, "")
+        XCTAssertEqual(block.caption, "")
         undoManager.redo()
-        XCTAssertEqual(block.descriptionText, "Temple at sunset")
+        XCTAssertEqual(block.caption, "Temple at sunset")
 
         undoManager.beginUndoGrouping()
         context.delete(block)
@@ -331,7 +350,7 @@ final class TripSorterTests: XCTestCase {
         undoManager.removeAllActions()
 
         undoManager.beginUndoGrouping()
-        block.descriptionText = "Temple after rain"
+        block.caption = "Temple after rain"
         section.touch()
         undoManager.endUndoGrouping()
 

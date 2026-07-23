@@ -70,8 +70,9 @@ struct HtmlExporter {
             .gallery-slider { position:relative; border-radius:12px; overflow:hidden; background:white; }
             .gallery-track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; overscroll-behavior-x:contain; }
             .gallery-track::-webkit-scrollbar { display:none; }
-            .gallery-slide { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; display:grid; place-items:center; min-width:0; }
+            .gallery-slide { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; display:flex; flex-direction:column; justify-content:center; min-width:0; }
             .gallery-slide img { width:100%; height:clamp(260px,60vw,560px); object-fit:contain; border-radius:0; background:white; cursor:zoom-in; }
+            .gallery-photo-caption { margin:0; padding:10px 18px 46px; color:#4f5864; font-size:.9rem; text-align:center; background:white; }
             .gallery-button { position:absolute; z-index:2; top:50%; translate:0 -50%; width:42px; height:42px; border:0; border-radius:50%; background:#17202ccc; color:white; font-size:1.5rem; cursor:pointer; }
             .gallery-button:disabled { opacity:.28; cursor:default; }
             .gallery-previous { left:12px; }
@@ -88,6 +89,7 @@ struct HtmlExporter {
             .lightbox-previous { left:max(16px,env(safe-area-inset-left)); }
             .lightbox-next { right:max(16px,env(safe-area-inset-right)); }
             .lightbox-position { position:fixed; z-index:4; left:50%; bottom:max(18px,env(safe-area-inset-bottom)); translate:-50% 0; padding:7px 12px; border-radius:999px; background:#000a; color:white; font-size:.9rem; }
+            .lightbox-caption { position:fixed; z-index:4; left:50%; bottom:max(62px,calc(env(safe-area-inset-bottom) + 62px)); translate:-50% 0; width:min(680px,calc(100% - 40px)); padding:9px 13px; border-radius:10px; background:#000a; color:white; text-align:center; }
             blockquote { margin:1.2rem 0; padding:.5rem 1.2rem; border-left:4px solid var(--accent); color:#4f5864; }
             pre { overflow:auto; padding:1rem; border-radius:10px; background:#18202b; color:#f4f6f8; font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
             hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
@@ -108,6 +110,7 @@ struct HtmlExporter {
             <button class="lightbox-button lightbox-previous" type="button" aria-label="Previous full-screen photo">‹</button>
             <img alt="">
             <button class="lightbox-button lightbox-next" type="button" aria-label="Next full-screen photo">›</button>
+            <div class="lightbox-caption" aria-live="polite"></div>
             <div class="lightbox-position" aria-live="polite"></div>
           </dialog>
           <script>
@@ -115,6 +118,7 @@ struct HtmlExporter {
             const lightboxImage = lightbox.querySelector('img');
             const lightboxPrevious = lightbox.querySelector('.lightbox-previous');
             const lightboxNext = lightbox.querySelector('.lightbox-next');
+            const lightboxCaption = lightbox.querySelector('.lightbox-caption');
             const lightboxPosition = lightbox.querySelector('.lightbox-position');
             let lightboxImages = [];
             let lightboxIndex = 0;
@@ -125,6 +129,8 @@ struct HtmlExporter {
               if (!image) return;
               lightboxImage.src = image.src;
               lightboxImage.alt = image.alt;
+              lightboxCaption.textContent = image.dataset.caption || '';
+              lightboxCaption.hidden = !image.dataset.caption;
               lightboxPrevious.disabled = lightboxIndex === 0;
               lightboxNext.disabled = lightboxIndex === lightboxImages.length - 1;
               lightboxPosition.textContent = `${lightboxIndex + 1} of ${lightboxImages.length}`;
@@ -270,7 +276,7 @@ struct HtmlExporter {
                 return "<p class=\"block meta\">Photo unavailable</p>"
             }
             let path = context.addAsset(data: data, extension: "jpg")
-            let imageHTML = "<img src=\"\(path)\" alt=\"\(attributeEscape(block.descriptionText.isEmpty ? "Travel journal photo" : block.descriptionText))\">"
+            let imageHTML = "<img src=\"\(path)\" alt=\"\(attributeEscape(block.caption.isEmpty ? "Travel journal photo" : block.caption))\">"
             let linkedImage: String
             if let url = LinkAddress.normalizedURL(from: block.linkURLString) {
                 linkedImage = "<a class=\"linked-media\" href=\"\(attributeEscape(url.absoluteString))\">\(imageHTML)</a>"
@@ -278,7 +284,7 @@ struct HtmlExporter {
                 linkedImage = imageHTML
             }
             return """
-            <figure class="block">\(linkedImage)\(caption(block.descriptionText))</figure>
+            <figure class="block">\(linkedImage)\(caption(block.caption))</figure>
             """
         case .gallery:
             var images = ""
@@ -286,8 +292,12 @@ struct HtmlExporter {
                 if let image = await loadImage(reference: reference),
                    let data = image.jpegData(compressionQuality: 0.86) {
                     let path = context.addAsset(data: data, extension: "jpg")
+                    let photoCaptionText = reference.caption
+                    let photoCaption = photoCaptionText.isEmpty
+                        ? ""
+                        : "<p class=\"gallery-photo-caption\">\(htmlEscape(photoCaptionText))</p>"
                     images += """
-                    <div class="gallery-slide"><img src="\(path)" alt="\(attributeEscape(block.descriptionText.isEmpty ? "Gallery photo" : block.descriptionText))"></div>
+                    <div class="gallery-slide"><img src="\(path)" alt="\(attributeEscape(photoCaptionText.isEmpty ? "Gallery photo" : photoCaptionText))" data-caption="\(attributeEscape(photoCaptionText))">\(photoCaption)</div>
                     """
                 }
             }
@@ -295,7 +305,9 @@ struct HtmlExporter {
                 return "<p class=\"block meta\">Gallery unavailable</p>"
             }
             let galleryID = context.nextGalleryID()
+            let galleryTitle = block.title.isEmpty ? "" : "<h3>\(htmlEscape(block.title))</h3>"
             return """
+            \(galleryTitle)
             <figure class="block">
               <div class="gallery-slider" id="\(galleryID)" aria-label="Photo gallery">
                 <div class="gallery-track">\(images)</div>
@@ -303,7 +315,6 @@ struct HtmlExporter {
                 <button class="gallery-button gallery-next" type="button" aria-label="Next photo">›</button>
                 <div class="gallery-dots" aria-label="Choose a photo"></div>
               </div>
-              \(caption(block.descriptionText))
             </figure>
             """
         case .video:
@@ -321,11 +332,11 @@ struct HtmlExporter {
                 let path = context.addAsset(data: video.data, extension: video.fileExtension)
                 let poster = posterPath.map { " poster=\"\($0)\"" } ?? ""
                 return """
-                <figure class="block"><video controls preload="metadata"\(poster)><source src="\(path)"></video>\(caption(block.descriptionText))</figure>
+                <figure class="block"><video controls preload="metadata"\(poster)><source src="\(path)"></video>\(caption(block.caption))</figure>
                 """
             }
             return posterPath.map {
-                "<figure class=\"block\"><img src=\"\($0)\" alt=\"Video poster frame\">\(caption(block.descriptionText))<p class=\"meta\">Video file unavailable</p></figure>"
+                "<figure class=\"block\"><img src=\"\($0)\" alt=\"Video poster frame\">\(caption(block.caption))<p class=\"meta\">Video file unavailable</p></figure>"
             } ?? "<p class=\"block meta\">Video unavailable</p>"
         case .map:
             guard let section = block.section,
@@ -341,7 +352,7 @@ struct HtmlExporter {
                 imageHTML = "<img src=\"\(path)\" alt=\"Map of \(attributeEscape(section.placeName))\">"
             }
             return """
-            <div class="block"><h3>\(htmlEscape(section.placeName.isEmpty ? "Location" : section.placeName))</h3>\(imageHTML)<p class="coordinates">\(latitude.formatted()), \(longitude.formatted())</p><p>\(htmlEscape(block.descriptionText).replacingOccurrences(of: "\n", with: "<br>"))</p></div>
+            <div class="block"><h3>\(htmlEscape(section.placeName.isEmpty ? "Location" : section.placeName))</h3>\(imageHTML)<p class="coordinates">\(latitude.formatted()), \(longitude.formatted())</p><p>\(htmlEscape(block.mapDescription).replacingOccurrences(of: "\n", with: "<br>"))</p></div>
             """
         }
     }

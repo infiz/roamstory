@@ -156,20 +156,20 @@ struct DocxExporter {
                     imageIndex: embedded.imageIndex,
                     width: image.size.width,
                     height: image.size.height,
-                    description: block.descriptionText
+                    description: block.caption
                 )
             } else {
                 result += paragraph("[Photo unavailable]")
             }
-            if !block.descriptionText.isEmpty {
-                result += paragraph(block.descriptionText, style: "Caption")
+            if !block.caption.isEmpty {
+                result += paragraph(block.caption, style: "Caption")
             }
             if !block.linkURLString.isEmpty {
                 result += paragraph("Link: \(block.linkURLString)", style: "Caption")
             }
             return result
         case .gallery:
-            var result = ""
+            var result = block.title.isEmpty ? "" : heading(block.title, level: 3)
             for reference in block.orderedMediaReferences {
                 if let image = await loadImage(reference: reference),
                    let embedded = context.addImage(image) {
@@ -178,12 +178,14 @@ struct DocxExporter {
                         imageIndex: embedded.imageIndex,
                         width: image.size.width,
                         height: image.size.height,
-                        description: block.descriptionText
+                        description: reference.caption
                     )
+                } else {
+                    result += paragraph("[Gallery photo unavailable]")
                 }
-            }
-            if !block.descriptionText.isEmpty {
-                result += paragraph(block.descriptionText, style: "Caption")
+                if !reference.caption.isEmpty {
+                    result += paragraph(reference.caption, style: "Caption")
+                }
             }
             return result
         case .video:
@@ -199,8 +201,8 @@ struct DocxExporter {
                     description: "Video poster frame"
                 )
             }
-            if !block.descriptionText.isEmpty {
-                result += paragraph(block.descriptionText, style: "Caption")
+            if !block.caption.isEmpty {
+                result += paragraph(block.caption, style: "Caption")
             }
             return result
         case .map:
@@ -209,8 +211,8 @@ struct DocxExporter {
             if let latitude = section.latitude, let longitude = section.longitude {
                 result += paragraph("Coordinates: \(latitude.formatted()), \(longitude.formatted())")
             }
-            if !block.descriptionText.isEmpty {
-                result += paragraph(block.descriptionText)
+            if !block.mapDescription.isEmpty {
+                result += paragraph(block.mapDescription)
             }
             return result
         }
