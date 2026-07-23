@@ -10,6 +10,7 @@ struct TripsListView: View {
     @State private var isLoadingTrips = true
     @State private var loadErrorMessage: String?
     @State private var isCreatingTrip = false
+    @State private var tripBeingEdited: Trip?
     @State private var tripPendingDeletion: Trip?
 
     private var sortField: TripSortField {
@@ -62,15 +63,29 @@ struct TripsListView: View {
                 } else {
                     List {
                         ForEach(sortedTrips) { trip in
-                            NavigationLink(value: trip) {
-                                TripRowView(trip: trip)
-                            }
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    tripPendingDeletion = trip
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                            HStack(spacing: 8) {
+                                NavigationLink(value: trip) {
+                                    TripRowView(trip: trip)
                                 }
+                                Menu {
+                                    Button {
+                                        tripBeingEdited = trip
+                                    } label: {
+                                        Label("Edit Trip", systemImage: "pencil")
+                                    }
+                                    Divider()
+                                    Button(role: .destructive) {
+                                        tripPendingDeletion = trip
+                                    } label: {
+                                        Label("Delete Trip", systemImage: "trash")
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .frame(width: 44, height: 32)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("\(trip.title) trip actions")
                             }
                             .accessibilityAction(named: "Delete trip") {
                                 tripPendingDeletion = trip
@@ -99,6 +114,9 @@ struct TripsListView: View {
                 Task { await loadTrips(showProgress: trips.isEmpty) }
             }) {
                 CreateTripView()
+            }
+            .sheet(item: $tripBeingEdited) { trip in
+                EditTripView(trip: trip)
             }
             .alert(
                 "Delete Trip?",
@@ -184,50 +202,61 @@ private struct TripRowView: View {
     @State private var sectionCount: Int?
 
     var body: some View {
-        HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.blue.gradient)
-                .frame(width: 58, height: 58)
-                .overlay {
-                    Image(systemName: "map.fill")
-                        .foregroundStyle(.white)
-                        .font(.title2)
-                }
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 14) {
+                Image(systemName: "map.fill")
+                    .frame(width: 32, height: 32)
+                    .background(.blue.opacity(0.12), in: Circle())
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(trip.title)
-                    .font(.headline)
-                    .lineLimit(1)
-                if !trip.subtitle.isEmpty {
-                    Text(trip.subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(trip.title)
+                        .font(.headline)
                         .lineLimit(1)
+                    if !trip.subtitle.isEmpty {
+                        Text(trip.subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    if let sectionCount {
+                        Text("\(sectionCount) \(sectionCount == 1 ? "section" : "sections")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                if let startDate = trip.startDate, let endDate = trip.endDate {
-                    Label(
+            }
+
+            HStack(spacing: 14) {
+                Image(systemName: "clock")
+                    .frame(width: 32)
+                Text("Edited \(DateRangeFormatting.timestamp(trip.modifiedAt))")
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let startDate = trip.startDate, let endDate = trip.endDate {
+                HStack(spacing: 14) {
+                    Image(systemName: "calendar")
+                        .frame(width: 32)
+                    Text(
                         DateRangeFormatting.summary(start: startDate, end: endDate),
-                        systemImage: "calendar"
                     )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .monospacedDigit()
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(tripSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .accessibilityLabel(
+                    "Trip dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
+                )
             }
         }
         .padding(.vertical, 4)
         .task(id: trip.id) {
             await loadSectionCount()
         }
-    }
-
-    private var tripSummary: String {
-        let edited = "Edited \(trip.modifiedAt.formatted(date: .abbreviated, time: .omitted))"
-        guard let sectionCount else { return edited }
-        return "\(sectionCount) \(sectionCount == 1 ? "section" : "sections") · \(edited)"
     }
 
     @MainActor
