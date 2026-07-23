@@ -160,6 +160,7 @@ struct TripsListView: View {
             ) { trip in
                 Button("Delete", role: .destructive) {
                     modelContext.delete(trip)
+                    try? modelContext.save()
                     trips.removeAll { $0.id == trip.id }
                     tripPendingDeletion = nil
                 }
@@ -256,6 +257,13 @@ private struct TripRowView: View {
                 }
             }
             Spacer(minLength: 0)
+
+            Text(trip.formattedDataSize)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.secondary.opacity(0.12), in: Capsule())
         }
         .task(id: trip.id) {
             await loadSectionCount()

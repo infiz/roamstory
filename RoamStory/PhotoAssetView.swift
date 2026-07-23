@@ -132,12 +132,27 @@ struct VideoAssetView: View {
     @State private var player: AVPlayer?
     @State private var isMissing = false
     @State private var isLoadingVideo = false
+    @State private var isMuted = false
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottomTrailing) {
             Color.black
             if let player {
                 VideoPlayer(player: player)
+
+                Button {
+                    isMuted.toggle()
+                    player.isMuted = isMuted
+                } label: {
+                    Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 1)
+                }
+                .padding(12)
+                .accessibilityLabel(isMuted ? "Unmute video sound" : "Mute video sound")
             } else if isMissing {
                 ContentUnavailableView(
                     "Video Unavailable",
@@ -214,7 +229,11 @@ struct VideoAssetView: View {
             isMissing = true
             return
         }
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+
         let preparedPlayer = AVPlayer(playerItem: AVPlayerItem(asset: avAsset))
+        preparedPlayer.isMuted = isMuted
         player = preparedPlayer
         preparedPlayer.play()
     }

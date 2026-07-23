@@ -425,3 +425,74 @@ enum TripSorter {
         }
     }
 }
+
+enum DataSizeFormatting {
+    private static let formatter: ByteCountFormatter = {
+        let bcf = ByteCountFormatter()
+        bcf.allowedUnits = [.useBytes, .useKB, .useMB, .useGB]
+        bcf.countStyle = .file
+        bcf.includesUnit = true
+        return bcf
+    }()
+
+    static func string(fromByteCount count: Int64) -> String {
+        formatter.string(fromByteCount: count)
+    }
+}
+
+extension MediaReference {
+    var byteCount: Int64 {
+        var bytes: Int64 = 40
+        bytes += Int64(provider.utf8.count)
+        bytes += Int64(localIdentifier.utf8.count)
+        bytes += Int64(kindRawValue.utf8.count)
+        bytes += Int64(originalFilename.utf8.count)
+        bytes += Int64(caption.utf8.count)
+        return bytes
+    }
+}
+
+extension ContentBlock {
+    var byteCount: Int64 {
+        var bytes: Int64 = 64
+        bytes += Int64(typeRawValue.utf8.count)
+        bytes += Int64(title.utf8.count)
+        bytes += Int64(text.utf8.count)
+        bytes += Int64(attributedTextData?.count ?? 0)
+        bytes += Int64(caption.utf8.count)
+        bytes += Int64(mapDescription.utf8.count)
+        bytes += Int64(linkURLString.utf8.count)
+        bytes += Int64(fontFamily.utf8.count)
+        bytes += mediaReferences.reduce(0) { $0 + $1.byteCount }
+        return bytes
+    }
+}
+
+extension TripSection {
+    var byteCount: Int64 {
+        var bytes: Int64 = 80
+        bytes += Int64(title.utf8.count)
+        bytes += Int64(kindRawValue.utf8.count)
+        bytes += Int64(placeName.utf8.count)
+        bytes += blocks.reduce(0) { $0 + $1.byteCount }
+        return bytes
+    }
+
+    var formattedDataSize: String {
+        DataSizeFormatting.string(fromByteCount: byteCount)
+    }
+}
+
+extension Trip {
+    var byteCount: Int64 {
+        var bytes: Int64 = 64
+        bytes += Int64(title.utf8.count)
+        bytes += Int64(subtitle.utf8.count)
+        bytes += sections.reduce(0) { $0 + $1.byteCount }
+        return bytes
+    }
+
+    var formattedDataSize: String {
+        DataSizeFormatting.string(fromByteCount: byteCount)
+    }
+}
