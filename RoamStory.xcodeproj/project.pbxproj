@@ -1,0 +1,376 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 71;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		100000000000000000000101 /* RoamStoryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000001 /* RoamStoryApp.swift */; };
+		100000000000000000000102 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000002 /* Models.swift */; };
+		100000000000000000000103 /* TripsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000003 /* TripsListView.swift */; };
+		100000000000000000000104 /* TripEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000004 /* TripEditorView.swift */; };
+		100000000000000000000105 /* SectionEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000005 /* SectionEditorView.swift */; };
+		100000000000000000000106 /* MediaPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000006 /* MediaPicker.swift */; };
+		100000000000000000000107 /* PhotoAssetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000007 /* PhotoAssetView.swift */; };
+		100000000000000000000108 /* TripSorterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000008 /* TripSorterTests.swift */; };
+		100000000000000000000109 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000D /* XCTest.framework */; };
+		10000000000000000000010B /* RichTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000E /* RichTextEditor.swift */; };
+		10000000000000000000010C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000F /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		100000000000000000000401 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 100000000000000000000500 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 100000000000000000000200;
+			remoteInfo = RoamStory;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		100000000000000000000001 /* RoamStoryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoamStoryApp.swift; sourceTree = "<group>"; };
+		100000000000000000000002 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		100000000000000000000003 /* TripsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripsListView.swift; sourceTree = "<group>"; };
+		100000000000000000000004 /* TripEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripEditorView.swift; sourceTree = "<group>"; };
+		100000000000000000000005 /* SectionEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionEditorView.swift; sourceTree = "<group>"; };
+		100000000000000000000006 /* MediaPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPicker.swift; sourceTree = "<group>"; };
+		100000000000000000000007 /* PhotoAssetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAssetView.swift; sourceTree = "<group>"; };
+		100000000000000000000008 /* TripSorterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripSorterTests.swift; sourceTree = "<group>"; };
+		100000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		10000000000000000000000A /* RoamStory.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RoamStory.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		10000000000000000000000B /* RoamStoryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RoamStoryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		10000000000000000000000D /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+		10000000000000000000000E /* RichTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichTextEditor.swift; sourceTree = "<group>"; };
+		10000000000000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		100000000000000000000302 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000312 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000109 /* XCTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		100000000000000000000100 = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000110 /* RoamStory */,
+				100000000000000000000120 /* RoamStoryTests */,
+				100000000000000000000130 /* Frameworks */,
+				100000000000000000000140 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		100000000000000000000110 /* RoamStory */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000001 /* RoamStoryApp.swift */,
+				100000000000000000000002 /* Models.swift */,
+				100000000000000000000003 /* TripsListView.swift */,
+				100000000000000000000004 /* TripEditorView.swift */,
+				100000000000000000000005 /* SectionEditorView.swift */,
+				100000000000000000000006 /* MediaPicker.swift */,
+				100000000000000000000007 /* PhotoAssetView.swift */,
+				10000000000000000000000E /* RichTextEditor.swift */,
+				10000000000000000000000F /* Assets.xcassets */,
+				100000000000000000000009 /* Info.plist */,
+			);
+			path = RoamStory;
+			sourceTree = "<group>";
+		};
+		100000000000000000000120 /* RoamStoryTests */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000008 /* TripSorterTests.swift */,
+			);
+			path = RoamStoryTests;
+			sourceTree = "<group>";
+		};
+		100000000000000000000130 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				10000000000000000000000D /* XCTest.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		100000000000000000000140 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				10000000000000000000000A /* RoamStory.app */,
+				10000000000000000000000B /* RoamStoryTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		100000000000000000000200 /* RoamStory */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000610 /* Build configuration list for PBXNativeTarget "RoamStory" */;
+			buildPhases = (
+				100000000000000000000301 /* Sources */,
+				100000000000000000000302 /* Frameworks */,
+				100000000000000000000303 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RoamStory;
+			productName = RoamStory;
+			productReference = 10000000000000000000000A /* RoamStory.app */;
+			productType = "com.apple.product-type.application";
+		};
+		100000000000000000000210 /* RoamStoryTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000620 /* Build configuration list for PBXNativeTarget "RoamStoryTests" */;
+			buildPhases = (
+				100000000000000000000311 /* Sources */,
+				100000000000000000000312 /* Frameworks */,
+				100000000000000000000313 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				100000000000000000000400 /* PBXTargetDependency */,
+			);
+			name = RoamStoryTests;
+			productName = RoamStoryTests;
+			productReference = 10000000000000000000000B /* RoamStoryTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		100000000000000000000500 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					100000000000000000000200 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					100000000000000000000210 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 100000000000000000000200;
+					};
+				};
+			};
+			buildConfigurationList = 100000000000000000000600 /* Build configuration list for PBXProject "RoamStory" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 100000000000000000000100;
+			productRefGroup = 100000000000000000000140 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				100000000000000000000200 /* RoamStory */,
+				100000000000000000000210 /* RoamStoryTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		100000000000000000000303 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				10000000000000000000010C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000313 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		100000000000000000000301 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000101 /* RoamStoryApp.swift in Sources */,
+				100000000000000000000102 /* Models.swift in Sources */,
+				100000000000000000000103 /* TripsListView.swift in Sources */,
+				100000000000000000000104 /* TripEditorView.swift in Sources */,
+				100000000000000000000105 /* SectionEditorView.swift in Sources */,
+				100000000000000000000106 /* MediaPicker.swift in Sources */,
+				100000000000000000000107 /* PhotoAssetView.swift in Sources */,
+				10000000000000000000010B /* RichTextEditor.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000311 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000108 /* TripSorterTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		100000000000000000000400 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 100000000000000000000200 /* RoamStory */;
+			targetProxy = 100000000000000000000401 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		100000000000000000000701 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		100000000000000000000702 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		100000000000000000000711 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N6386GYZVJ;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RoamStory/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.infiz.roamstory;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		100000000000000000000712 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N6386GYZVJ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RoamStory/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.infiz.roamstory;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		100000000000000000000721 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.roamstory.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RoamStory.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RoamStory";
+			};
+			name = Debug;
+		};
+		100000000000000000000722 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.roamstory.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RoamStory.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RoamStory";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		100000000000000000000600 /* Build configuration list for PBXProject "RoamStory" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000701 /* Debug */,
+				100000000000000000000702 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000610 /* Build configuration list for PBXNativeTarget "RoamStory" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000711 /* Debug */,
+				100000000000000000000712 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000620 /* Build configuration list for PBXNativeTarget "RoamStoryTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000721 /* Debug */,
+				100000000000000000000722 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 100000000000000000000500 /* Project object */;
+}

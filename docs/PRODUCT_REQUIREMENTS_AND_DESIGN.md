@@ -7,12 +7,12 @@
 
 ## 1. Product summary
 
-RoamStory is a writing-first travel journal organized as trips. Each trip contains titled sections representing a location, meal, view, animal, or experience. A section tells that part of the trip with ordered paragraphs, photos, galleries, videos, and maps. Text is the primary narrative; media and location context support the writing rather than replacing it.
+RoamStory is a writing-first travel journal organized as trips. Each trip contains titled sections categorized by the role they play in the journey: place, activity, food and drink, accommodation, transit, event, nature and wildlife, reflection, or other. A section tells that part of the trip with ordered paragraphs, photos, galleries, videos, and maps. Text is the primary narrative; media and location context support the writing rather than replacing it.
 
 The product should let a traveler:
 
 1. Create a trip.
-2. Add titled sections for locations, meals, views, animals, and experiences.
+2. Add titled sections for the places, activities, meals, stays, journeys, events, wildlife encounters, and reflections that make up the trip.
 3. Compose the story using reorderable content blocks.
 4. Reference original media in iPhone Photos and preserve relevant travel metadata without modifying or duplicating the originals.
 5. Export a faithful static document or a richer interactive bundle.
@@ -99,7 +99,8 @@ A traveler who wants to produce a thoughtful narrative of a trip and include hig
 Library
 └── Trip
     ├── Trip metadata and cover
-    ├── Section (location, meal, view, animal, or experience)
+    ├── Section (place, activity, food and drink, accommodation,
+    │            transit, event, nature and wildlife, reflection, or other)
     │   ├── Title, kind, date/time, and optional location
     │   └── Ordered blocks
     │       ├── Heading
@@ -113,7 +114,7 @@ Library
     └── Assets and location metadata
 ```
 
-A trip is the export and sharing boundary. A titled section is the primary narrative container and represents one location, meal, view, animal, or experience—for example, “Dinner at Nishiki Market” or “Elephants in Amboseli.” Blocks inside the section preserve the author's intended order and are the editing and rendering boundary. A separate nested entry-container block is not required for V1 because the section itself provides that grouping.
+A trip is the export and sharing boundary. A titled section is the primary narrative container—for example, “Dinner at Nishiki Market,” “Train to Kyoto,” or “Elephants in Amboseli.” Its kind describes the section's role in the trip, rather than a particular media subject. Blocks inside the section preserve the author's intended order and are the editing and rendering boundary. A separate nested entry-container block is not required for V1 because the section itself provides that grouping.
 
 ## 6. Functional requirements
 
@@ -124,7 +125,7 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | ID | Priority | Requirement |
 |---|---:|---|
 | FR-001 | P0 | The user can create, rename, duplicate, archive, and delete a trip. |
-| FR-002 | P0 | A trip supports title, subtitle, cover asset reference, start/end dates, and optional summary. |
+| FR-002 | P0 | A trip supports title, subtitle, cover asset reference, optional summary, and an optional start/end date-and-time range with hour precision. The end cannot precede the start. |
 | FR-003 | P0 | The library shows cover, title, date range, last edited time, and local/sync state. |
 | FR-004 | P0 | The user can import and export a portable RoamStory archive. |
 | FR-005 | P0 | Deletion requires confirmation and should be recoverable through a Recently Deleted area for a defined retention period. |
@@ -133,13 +134,15 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | FR-008 | P0 | From the Trips list, the user can create a trip, open and edit an existing trip, or delete a trip. |
 | FR-009 | P0 | The user can sort the Trips list by title (alphabetical), creation date, or modification date, with ascending and descending order available for every sort field. |
 | FR-009A | P0 | The selected sort field and direction persist across app launches. The default is modification date descending so the most recently edited trip appears first. |
+| FR-009B | P0 | The Trips title, sort control, and create control share one compact navigation-bar row, with sort and create grouped on the right. |
 
 ### 6.2 Sections and organization
 
 | ID | Priority | Requirement |
 |---|---:|---|
 | FR-010 | P0 | The user can add, title, reorder, duplicate, and delete sections within a trip. |
-| FR-011 | P0 | Every section has a user-provided title and a kind: location, meal, view, animal, experience, or other. It may also have a date/time, location, and cover/hero asset reference. |
+| FR-010A | P0 | The section list has no separate Edit mode. In normal mode, a row opens the section, its ellipsis menu exposes actions such as Delete, its three-bar handle supports drag reordering, and the toolbar plus adds a section. |
+| FR-011 | P0 | Every section has a user-provided title and a kind: place, activity, food and drink, accommodation, transit, event, nature and wildlife, reflection, or other. It may also have an optional start/end date-and-time range with hour precision, location, and cover/hero asset reference. The end cannot precede the start. |
 | FR-012 | P0 | A new trip starts with one untitled section and prompts the user to provide its title before export or publishing. |
 | FR-013 | P1 | The app can suggest a section from a date, detected place, or media group without applying it automatically. |
 
@@ -148,7 +151,7 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | ID | Priority | Requirement |
 |---|---:|---|
 | FR-020 | P0 | The editor is block-based and preserves a deterministic block order. |
-| FR-021 | P0 | V1 editable blocks inside a section are heading, paragraph, quote, divider, photo, gallery/slideshow, video, and map. |
+| FR-021 | P0 | V1 editable blocks inside a section are heading, paragraph, quote, code, divider, photo, gallery/slideshow, video, and map. Code blocks use a monospaced, non-autocorrecting plain-text editor and preserve whitespace and line breaks. |
 | FR-022 | P0 | The user can insert, select, reorder, duplicate, and delete blocks. |
 | FR-023 | P0 | Pressing Return at the end of a paragraph creates a new paragraph block. |
 | FR-024 | P0 | A soft line break remains inside the current paragraph and is stored distinctly from a paragraph boundary. |
@@ -157,17 +160,29 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | FR-027 | P1 | Multi-select supports moving or deleting several blocks together. |
 | FR-028 | P1 | The user can copy/paste blocks within and between trips. |
 | FR-029 | P0 | A section directly owns its ordered content blocks; V1 does not support nested block containers. |
+| FR-029A | P0 | Every paragraph block supports an optional user-defined title displayed immediately above its body. |
+| FR-029B | P0 | The editor visually distinguishes adjacent blocks with a compact, unobtrusive boundary marker and identifies each block's type without relying on color alone. The marker must not create the appearance of a large content gap. |
+| FR-029C | P0 | Every block uses a consistent top-right control layout: an ellipsis menu for block actions followed by a three-bar drag handle on the far right. |
+| FR-029D | P0 | Every block's ellipsis menu provides a type-specific Delete action. Activating it presents a confirmation prompt before removal. |
+| FR-029D1 | P0 | Ellipsis action controls use a dedicated minimum 44-point-wide tap target and borderless list-row interaction so a single tap reliably opens the menu without competing with the adjacent drag handle. |
+| FR-029E | P0 | After creating a gallery, the user can add photos, remove individual photos with confirmation, and drag photos into a new display order. Removing a gallery item does not delete the original from the Photos library. |
+| FR-029E1 | P0 | Edit Gallery Photos appears in the gallery block's ellipsis menu rather than as an inline content button. |
+| FR-029F | P0 | A section does not have a separate Edit mode. Adding, reordering, configuring, and deleting blocks—and editing gallery contents—are directly available in the normal section view. |
+| FR-029G | P0 | Section metadata is presented as a small, visually subtle pill immediately to the right of the section title in the navigation bar. It does not consume a content row or create empty space above the blocks. The pill contains the section-kind icon and location, truncates to one line, and falls back to the kind label when no location exists. |
+| FR-029H | P0 | Every block divider contains a compact plus icon that opens the block-type menu directly. The selected block or subsequent media selection is inserted at that exact position. Insertion points exist before, between, and after blocks. The first divider sits close below the navigation bar without the list's default large top margin. In an empty section, the plus appears above the empty-state message. The section toolbar does not duplicate this Add action. |
+| FR-029I | P0 | Every block type uses the same full available content width. Block cards retain only a small, consistent left and right margin, and each block editor expands to fill its card. |
 
 ### 6.4 Rich text
 
 | ID | Priority | Requirement |
 |---|---:|---|
-| FR-030 | P0 | Inline styles support font family, font size, bold, italic, underline, strikethrough, text color, and links. |
+| FR-030 | P0 | Inline styles support font family, font size, bold, italic, underline, strikethrough, text color, and links. The user can apply them to a selected character range rather than only to the whole paragraph. |
 | FR-031 | P0 | Paragraph styles support body, title, heading levels, quote, and caption. |
 | FR-032 | P0 | Paragraph properties support alignment and semantic spacing. |
-| FR-033 | P0 | Inline formatting is stored as normalized text runs. |
+| FR-033 | P0 | Inline formatting is stored as attributed ranges or normalized text runs that preserve partial-text styling across save, relaunch, archive, and export. |
 | FR-034 | P1 | Text and highlight colors use a controlled palette with accessible contrast. |
 | FR-035 | P0 | The user can change the font family and size for selected text while the paragraph retains a semantic base style for export and accessibility. |
+| FR-036 | P0 | The user can apply, edit, or remove a URL link on selected paragraph text. Link formatting is stored in the attributed text ranges and does not affect unselected text. The link editor uses a clearly empty labeled field, displays required/invalid-address feedback, and disables Apply until valid. Web addresses without a scheme default to HTTPS. |
 
 ### 6.5 Photos and galleries
 
@@ -175,6 +190,8 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 |---|---:|---|
 | FR-040 | P0 | The user can select one or multiple photos from the iPhone Photos library. Google Photos, OneDrive, and other file/cloud providers are future integrations. |
 | FR-041 | P0 | A photo block supports a description/caption displayed below the photo, alt text, display style, crop/focal-point metadata, and an optional link. |
+| FR-041A | P0 | A photo block's ellipsis menu includes Change Photo. Replacing the Photos reference preserves the block and caption and never deletes either original from the Photos library. |
+| FR-041B | P0 | A photo block's ellipsis menu supports adding and editing a validated web link and, when linked, exposes a direct Remove Photo Link action. A linked photo displays a link indicator and opens the destination when tapped. |
 | FR-042 | P0 | A gallery supports ordered photos, an optional description for each photo, an overall caption, aspect-ratio preference, and a semantic layout style. |
 | FR-043 | P0 | V1 gallery styles are grid and slideshow/carousel; exporters may map them to format-appropriate layouts. |
 | FR-044 | P0 | For iPhone Photos assets, the app stores the Photos local identifier and required presentation metadata without copying the original photo into RoamStory storage. Regenerable thumbnails may be cached. |
@@ -190,7 +207,7 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 |---|---:|---|
 | FR-050 | P0 | The user can select one or multiple supported videos from the iPhone Photos library. |
 | FR-051 | P0 | A video block supports a description/caption displayed below the video, alt text/transcript placeholder, poster frame, and display style. |
-| FR-052 | P0 | Video remains playable in the app and HTML export. |
+| FR-052 | P0 | A video block uses the same full content width and media height as other media blocks and provides native inline playback controls backed by its Photos reference. Video remains playable in the app and HTML export. |
 | FR-053 | P0 | PDF and DOCX render a poster frame, caption, and optional link or QR code rather than embedding playable video. |
 | FR-054 | P1 | The app may create a temporary share-optimized transcode for export or publishing without retaining a second permanent original. |
 | FR-055 | P0 | For iPhone Photos videos, the app stores the Photos local identifier and presentation metadata without copying the original video into RoamStory storage. Regenerable poster frames may be cached. |
@@ -200,8 +217,10 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | ID | Priority | Requirement |
 |---|---:|---|
 | FR-060 | P0 | The schema reserves typed map and place blocks so future migrations do not require abusing generic embeds. |
-| FR-061 | P1 | The user can add a place with name, coordinates, address, notes, and an optional linked block/asset. |
+| FR-061 | P0 | The user selects a place using the native iOS map by searching for a place/address or tapping to drop a pin; RoamStory stores the selected name and coordinates without requiring manual coordinate entry. |
+| FR-061A | P0 | Before saving, the location picker shows the selected pin, resolved or editable place name, and coordinates. The user can change or remove a section location. |
 | FR-062 | P1 | A map block can show selected places and a route. |
+| FR-062A | P0 | A map block's ellipsis menu includes Change Location, which opens the native map picker and updates the section place and coordinates. A map block also supports an editable description displayed below the map. |
 | FR-063 | P1 | With permission, the app can correlate photo EXIF time/GPS, GPX samples, journal dates, and places to suggest a day timeline. |
 | FR-064 | P1 | Suggestions are reviewable and never silently insert content or expose precise location. |
 
@@ -249,9 +268,9 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 1. Create a trip and enter its title and optional date range.
 2. Add a section, choose its kind, and provide a title.
 3. Add one or more paragraphs, photos, galleries, videos, or maps in the desired order.
-4. Use a formatting bar to change the paragraph style, font family, font size, and inline styles.
+4. Optionally title each paragraph, select any portion of its body, and use the formatting bar to change that range's font family, font size, and inline styles.
 5. Add a description below each photo or video when desired.
-6. Add and reorder additional sections for other locations, meals, views, animals, or experiences.
+6. Add and reorder additional sections for other places, activities, meals, stays, journeys, events, wildlife encounters, or reflections.
 7. Leave the editor at any time; autosave preserves the work.
 
 **Add several photos**
@@ -275,9 +294,12 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 
 - Selection and keyboard behavior should follow native iOS expectations.
 - Formatting controls reflect the current selection and mixed states.
+- With no selection, a formatting change updates typing attributes for subsequently entered text; with a selection, it updates only that character range.
 - Media import must not block text editing.
 - Blocks with missing or processing assets remain editable and show an actionable state.
+- Each block appears as a visually bounded card with a compact type label, and adjacent blocks are separated by an accessible boundary indicator.
 - Destructive block actions participate in undo.
+- Block actions are available from each block's ellipsis menu in normal mode; destructive actions require confirmation.
 - Reordering should work with touch and keyboard/VoiceOver alternatives.
 
 ### 7.4 Accessibility
@@ -313,6 +335,7 @@ Block
 └── map
 
 Paragraph
+├── title (optional)
 └── runs: [TextRun]
 
 MediaReference
@@ -330,7 +353,7 @@ Use stable UUIDs for trips, sections, blocks, media references, and revisions. O
 A section is the semantic container for one travel moment, subject, stop, or experience. It contains an ordered mixture of paragraphs, photos, galleries, videos, and maps.
 
 - A section requires a title before export or publishing.
-- Section kind is one of `location`, `meal`, `view`, `animal`, `experience`, or `other`.
+- Section kind is one of `place`, `activity`, `foodAndDrink`, `accommodation`, `transit`, `event`, `natureAndWildlife`, `reflection`, or `other`.
 - Section metadata may include local date/time, time zone, place name, coordinates, and a hero media reference.
 - A section directly owns zero or more leaf blocks; blocks do not contain other blocks in V1.
 - Empty sections are allowed temporarily while editing but should be flagged before export.
@@ -350,15 +373,16 @@ This is a design example, not yet a locked wire format.
   "subtitle": "Tokyo to Kyoto",
   "createdAt": "2026-07-22T18:30:00Z",
   "modifiedAt": "2026-07-22T19:00:00Z",
-  "startDate": "2026-07-10",
-  "endDate": "2026-07-20",
+  "startDate": "2026-07-10T09:00:00-07:00",
+  "endDate": "2026-07-20T18:00:00-07:00",
   "coverMediaReferenceId": "5A75E4B0-6921-4521-9302-FA5A21C4ACAF",
   "sections": [
     {
       "id": "1B2B8D19-AD83-407F-BDEA-2C2A84BB6EBE",
       "title": "Arrival at Shibuya Crossing",
-      "kind": "location",
-      "localDate": "2026-07-11",
+      "kind": "place",
+      "startDate": "2026-07-11T11:00:00+09:00",
+      "endDate": "2026-07-11T13:00:00+09:00",
       "timeZone": "Asia/Tokyo",
       "location": {
         "name": "Shibuya Crossing",
@@ -369,6 +393,7 @@ This is a design example, not yet a locked wire format.
         {
           "id": "3905B0F1-2C21-4529-9E2A-08A4208D50B5",
           "type": "paragraph",
+          "title": "First Impressions",
           "paragraphStyle": "body",
           "runs": [
             { "text": "We arrived in ", "marks": [], "fontFamily": "New York", "fontSize": 17 },
@@ -738,7 +763,7 @@ Compare renderer output structurally and visually where practical. HTML must als
 | V1 media storage | PhotoKit references using Photos local identifiers; no permanent original copy | Avoids duplicating the user's Photos library while retaining access through system APIs. |
 | Future media sources | Typed provider abstraction | Allows Google Photos, OneDrive, and other drives later without changing content blocks. |
 | Editor model | Ordered semantic blocks | Supports mixed media, reordering, and format-specific rendering. |
-| Composite content | A titled, categorized section directly owns ordered leaf blocks | A section naturally groups one location, meal, view, animal, or experience without nested-block complexity. |
+| Composite content | A titled, categorized section directly owns ordered leaf blocks | A section groups one meaningful part of the journey without nested-block complexity. |
 | Rich text | Semantic paragraph styles plus normalized inline runs | Predictable editing and export. |
 | Working persistence | SwiftData or SQLite plus PhotoKit resolver and derivative cache | Efficient incremental edits without duplicating Photos originals. |
 | Portable format | Manifested package/archive | User ownership, integrity validation, and long-term portability. |
@@ -768,6 +793,7 @@ Compare renderer output structurally and visually where practical. HTML must als
 - [ ] The selected Trips sort field and direction survive app relaunch; modification date descending is used initially.
 - [ ] User can create and reorder sections and all V1 blocks.
 - [ ] Paragraphs and soft line breaks round-trip distinctly.
+- [ ] Paragraph titles and multiple differently styled character ranges survive relaunch.
 - [ ] Inline and semantic paragraph styles survive relaunch and archive import.
 - [ ] Multiple photos can become individual blocks or a gallery.
 - [ ] Original media and selected metadata remain intact.
