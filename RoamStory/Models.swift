@@ -255,7 +255,8 @@ final class ContentBlock {
     var title: String = ""
     var text: String
     var attributedTextData: Data?
-    var descriptionText: String
+    var caption: String
+    var mapDescription: String
     var linkURLString: String = ""
     var fontFamily: String
     var fontSize: Double
@@ -275,7 +276,8 @@ final class ContentBlock {
         title: String = "",
         text: String = "",
         attributedTextData: Data? = nil,
-        descriptionText: String = "",
+        caption: String = "",
+        mapDescription: String = "",
         linkURLString: String = "",
         fontFamily: String = "New York",
         fontSize: Double = 17,
@@ -291,7 +293,8 @@ final class ContentBlock {
         self.title = title
         self.text = text
         self.attributedTextData = attributedTextData
-        self.descriptionText = descriptionText
+        self.caption = caption
+        self.mapDescription = mapDescription
         self.linkURLString = linkURLString
         self.fontFamily = fontFamily
         self.fontSize = fontSize
@@ -314,6 +317,7 @@ final class MediaReference {
     var localIdentifier: String
     var kindRawValue: String
     var originalFilename: String
+    var caption: String = ""
     var createdAt: Date
     var sortIndex: Int = 0
     var block: ContentBlock?
@@ -324,6 +328,7 @@ final class MediaReference {
         localIdentifier: String,
         kind: MediaKind,
         originalFilename: String = "",
+        caption: String = "",
         sortIndex: Int = 0,
         createdAt: Date = .now
     ) {
@@ -332,6 +337,7 @@ final class MediaReference {
         self.localIdentifier = localIdentifier
         kindRawValue = kind.rawValue
         self.originalFilename = originalFilename
+        self.caption = caption
         self.sortIndex = sortIndex
         self.createdAt = createdAt
     }

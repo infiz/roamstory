@@ -1200,13 +1200,18 @@ private struct MediaBlockView: View {
                 MissingMediaView()
             }
 
-            BlockDescriptionField(
-                prompt: block.type == .video
-                    ? "Describe this video"
-                    : "Describe this photo",
-                text: $block.descriptionText,
-                onChange: onChange
-            )
+            VStack(alignment: .leading, spacing: 3) {
+                Text(block.type == .video ? "Video caption" : "Photo caption")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                BlockMultilineTextField(
+                    prompt: "Add a caption",
+                    text: $block.caption,
+                    actionName: "Edit Caption",
+                    accessibilityHint: "Tap anywhere in this row to edit the caption",
+                    onChange: onChange
+                )
+            }
         }
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1291,10 +1296,20 @@ private struct GalleryBlockView: View {
     let onChange: () -> Void
     @State private var fullScreenPhotoIndex = 0
     @State private var isShowingFullScreenGallery = false
+    @State private var selectedPhotoIndex = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TabView {
+            BatchedTextField(
+                "Gallery title (optional)",
+                text: $block.title,
+                actionName: "Edit Gallery Title",
+                onChange: onChange
+            )
+            .font(.headline)
+            .textInputAutocapitalization(.sentences)
+
+            TabView(selection: $selectedPhotoIndex) {
                 ForEach(Array(block.orderedMediaReferences.enumerated()), id: \.element.id) { index, reference in
                     Button {
                         fullScreenPhotoIndex = index
@@ -1305,20 +1320,36 @@ private struct GalleryBlockView: View {
                             .padding(.horizontal, 2)
                     }
                     .buttonStyle(.plain)
+                    .tag(index)
                     .accessibilityLabel("View gallery photo \(index + 1) full screen")
                 }
             }
             .frame(height: 240)
             .tabViewStyle(.page(indexDisplayMode: .always))
 
-            BlockDescriptionField(
-                prompt: "Describe this gallery",
-                text: $block.descriptionText,
-                onChange: onChange
-            )
+            if block.orderedMediaReferences.indices.contains(selectedPhotoIndex) {
+                let selectedReference = block.orderedMediaReferences[selectedPhotoIndex]
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Photo \(selectedPhotoIndex + 1) caption")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    BatchedTextField(
+                        "Add a caption",
+                        text: Bindable(selectedReference).caption,
+                        axis: .vertical,
+                        actionName: "Edit Photo Caption",
+                        onChange: onChange
+                    )
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+            }
 
         }
         .padding(.vertical, 8)
+        .onChange(of: block.orderedMediaReferences.count) { _, count in
+            selectedPhotoIndex = min(selectedPhotoIndex, max(count - 1, 0))
+        }
         .fullScreenCover(isPresented: $isShowingFullScreenGallery) {
             FullScreenGalleryView(
                 references: block.orderedMediaReferences,
@@ -1379,6 +1410,19 @@ private struct FullScreenGalleryView: View {
                 }
                 .padding()
                 Spacer()
+                if references.indices.contains(selectedIndex),
+                   !references[selectedIndex].caption.isEmpty {
+                    Text(references[selectedIndex].caption)
+                        .font(.body)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal)
+                        .padding(.bottom, 24)
+                        .accessibilityLabel("Photo caption")
+                }
             }
         }
         .statusBarHidden()
@@ -1413,9 +1457,15 @@ private struct GalleryEditorView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(reference.originalFilename.isEmpty ? "Photo" : reference.originalFilename)
                                     .lineLimit(1)
-                                Text("Drag to reorder")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                BatchedTextField(
+                                    "Photo caption (optional)",
+                                    text: Bindable(reference).caption,
+                                    axis: .vertical,
+                                    actionName: "Edit Photo Caption",
+                                    onChange: onChange
+                                )
+                                .font(.caption)
+                                .lineLimit(3)
                             }
                             Spacer()
                             Image(systemName: "line.3.horizontal")
@@ -1568,9 +1618,11 @@ private struct MapBlockView: View {
                 .frame(height: 180)
             }
 
-            BlockDescriptionField(
+            BlockMultilineTextField(
                 prompt: "Describe this location",
-                text: $block.descriptionText,
+                text: $block.mapDescription,
+                actionName: "Edit Location Description",
+                accessibilityHint: "Tap anywhere in this row to edit the location description",
                 onChange: onChange
             )
         }
@@ -1590,22 +1642,24 @@ private struct MissingMediaView: View {
     }
 }
 
-private struct BlockDescriptionField: View {
+private struct BlockMultilineTextField: View {
     var body: some View {
         BatchedTextField(
             prompt,
             text: $text,
             axis: .vertical,
-            actionName: "Edit Description",
+            actionName: actionName,
             onChange: onChange
         )
             .font(.subheadline)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .accessibilityHint("Tap anywhere in this row to edit the description")
+            .accessibilityHint(accessibilityHint)
     }
 
     let prompt: String
     @Binding var text: String
+    let actionName: String
+    let accessibilityHint: String
     let onChange: () -> Void
 }
 
