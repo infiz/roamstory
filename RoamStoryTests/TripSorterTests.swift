@@ -205,6 +205,10 @@ final class TripSorterTests: XCTestCase {
             ),
             "2026/07/23 01:00 - 2026/07/23 03:00"
         )
+        XCTAssertEqual(
+            DateRangeFormatting.timestamp(start, timeZone: losAngeles),
+            "2026/07/22 09:00"
+        )
         XCTAssertEqual(start.timeIntervalSince1970, 1_784_736_000)
     }
 

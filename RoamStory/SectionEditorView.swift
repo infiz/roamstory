@@ -36,6 +36,27 @@ struct SectionEditorView: View {
 
     var body: some View {
         List {
+            if let startDate = section.startDate, let endDate = section.endDate {
+                Label {
+                    Text(DateRangeFormatting.summary(start: startDate, end: endDate))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .allowsTightening(true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } icon: {
+                    Image(systemName: "calendar")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .listRowInsets(
+                    EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14)
+                )
+                .accessibilityLabel(
+                    "Section dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
+                )
+            }
+
             if section.orderedBlocks.isEmpty {
                 blockInsertionDivider(at: 0)
                 ContentUnavailableView {
@@ -163,6 +184,18 @@ struct SectionEditorView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
+                Button(editMode.isEditing ? "Done" : "Reorder") {
+                    withAnimation {
+                        editMode = editMode.isEditing ? .inactive : .active
+                    }
+                }
+                .accessibilityHint(
+                    editMode.isEditing
+                        ? "Hides block reordering controls"
+                        : "Shows block reordering controls"
+                )
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
                         undo()
@@ -207,18 +240,6 @@ struct SectionEditorView: View {
                     Image(systemName: "ellipsis.circle")
                 }
                 .accessibilityLabel("Section actions")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(editMode.isEditing ? "Done" : "Reorder") {
-                    withAnimation {
-                        editMode = editMode.isEditing ? .inactive : .active
-                    }
-                }
-                .accessibilityHint(
-                    editMode.isEditing
-                        ? "Hides block reordering controls"
-                        : "Shows block reordering controls"
-                )
             }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -1737,7 +1758,7 @@ private struct BatchedTextField: View {
     }
 }
 
-private struct EditSectionView: View {
+struct EditSectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var section: TripSection
 

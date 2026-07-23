@@ -9,6 +9,7 @@ struct TripEditorView: View {
     @State private var isCreatingSection = false
     @State private var isExportingDocx = false
     @State private var isExportingHTML = false
+    @State private var sectionBeingEdited: TripSection?
     @State private var sectionPendingDeletion: TripSection?
     @State private var sectionListEditMode: EditMode = .inactive
 
@@ -32,59 +33,72 @@ struct TripEditorView: View {
                 .listRowBackground(Color.clear)
             } else {
                 ForEach(trip.orderedSections) { section in
-                    HStack(spacing: 8) {
-                        NavigationLink {
-                            SectionLoadingDestination(section: section)
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: section.kind.systemImage)
-                                    .frame(width: 32, height: 32)
-                                    .background(.blue.opacity(0.12), in: Circle())
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(section.title)
-                                        .font(.headline)
-                                    SectionBlockSummary(section: section)
-                                    if let startDate = section.startDate, let endDate = section.endDate {
-                                        Text(DateRangeFormatting.summary(start: startDate, end: endDate))
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Label {
-                                        Text(
-                                            "Edited \(section.modifiedAt.formatted(date: .abbreviated, time: .shortened))"
-                                        )
-                                    } icon: {
-                                        Image(systemName: "clock")
-                                    }
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                }
-                                Spacer(minLength: 0)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(SectionNavigationButtonStyle())
-                        .accessibilityLabel("Open \(section.title)")
-                        Menu {
-                            Button(role: .destructive) {
-                                sectionPendingDeletion = section
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack(spacing: 8) {
+                            NavigationLink {
+                                SectionLoadingDestination(section: section)
                             } label: {
-                                Label("Delete Section", systemImage: "trash")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .frame(width: 44, height: 32)
+                                HStack(spacing: 12) {
+                                    Image(systemName: section.kind.systemImage)
+                                        .frame(width: 32, height: 32)
+                                        .background(.blue.opacity(0.12), in: Circle())
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(section.title)
+                                            .font(.headline)
+                                        SectionBlockSummary(section: section)
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
+                            }
+                            .buttonStyle(SectionNavigationButtonStyle())
+                            .accessibilityLabel("Open \(section.title)")
+                            Menu {
+                                Button {
+                                    sectionBeingEdited = section
+                                } label: {
+                                    Label("Edit Section", systemImage: "pencil")
+                                }
+                                Divider()
+                                Button(role: .destructive) {
+                                    sectionPendingDeletion = section
+                                } label: {
+                                    Label("Delete Section", systemImage: "trash")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .frame(width: 44, height: 32)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("\(section.title) section actions")
                         }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("\(section.title) section actions")
-                    }
-                    .swipeActions {
-                        Button(role: .destructive) {
-                            sectionPendingDeletion = section
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+
+                        HStack(spacing: 12) {
+                            Image(systemName: "clock")
+                                .frame(width: 32)
+                            Text("Edited \(DateRangeFormatting.timestamp(section.modifiedAt))")
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if let startDate = section.startDate, let endDate = section.endDate {
+                            HStack(spacing: 12) {
+                                Image(systemName: "calendar")
+                                    .frame(width: 32)
+                                Text(DateRangeFormatting.summary(start: startDate, end: endDate))
+                                    .monospacedDigit()
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityLabel(
+                                "Section dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
+                            )
                         }
                     }
                 }
@@ -138,6 +152,9 @@ struct TripEditorView: View {
         }
         .sheet(isPresented: $isEditingTrip) {
             EditTripView(trip: trip)
+        }
+        .sheet(item: $sectionBeingEdited) { section in
+            EditSectionView(section: section)
         }
         .sheet(isPresented: $isExportingDocx) {
             DocxExportView(
@@ -326,7 +343,7 @@ private struct CreateSectionView: View {
     }
 }
 
-private struct EditTripView: View {
+struct EditTripView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var trip: Trip
 
@@ -461,6 +478,14 @@ enum DateRangeFormatting {
     static func summary(start: Date, end: Date, timeZone: TimeZone) -> String {
         let formatter = makeFormatter(timeZone: timeZone)
         return "\(formatter.string(from: start)) - \(formatter.string(from: end))"
+    }
+
+    static func timestamp(_ date: Date) -> String {
+        deviceDateTimeFormatter.string(from: date)
+    }
+
+    static func timestamp(_ date: Date, timeZone: TimeZone) -> String {
+        makeFormatter(timeZone: timeZone).string(from: date)
     }
 
     private static func makeFormatter(timeZone: TimeZone) -> DateFormatter {
