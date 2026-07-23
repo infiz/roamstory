@@ -63,29 +63,61 @@ struct TripsListView: View {
                 } else {
                     List {
                         ForEach(sortedTrips) { trip in
-                            HStack(spacing: 8) {
-                                NavigationLink(value: trip) {
-                                    TripRowView(trip: trip)
-                                }
-                                Menu {
-                                    Button {
-                                        tripBeingEdited = trip
-                                    } label: {
-                                        Label("Edit Trip", systemImage: "pencil")
+                            VStack(alignment: .leading, spacing: 7) {
+                                HStack(spacing: 8) {
+                                    NavigationLink(value: trip) {
+                                        TripRowView(trip: trip)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .contentShape(Rectangle())
                                     }
-                                    Divider()
-                                    Button(role: .destructive) {
-                                        tripPendingDeletion = trip
+                                    .buttonStyle(TripNavigationButtonStyle())
+                                    .accessibilityLabel("Open \(trip.title)")
+                                    Menu {
+                                        Button {
+                                            tripBeingEdited = trip
+                                        } label: {
+                                            Label("Edit Trip", systemImage: "pencil")
+                                        }
+                                        Divider()
+                                        Button(role: .destructive) {
+                                            tripPendingDeletion = trip
+                                        } label: {
+                                            Label("Delete Trip", systemImage: "trash")
+                                        }
                                     } label: {
-                                        Label("Delete Trip", systemImage: "trash")
+                                        Image(systemName: "ellipsis")
+                                            .frame(width: 44, height: 32)
+                                            .contentShape(Rectangle())
                                     }
-                                } label: {
-                                    Image(systemName: "ellipsis")
-                                        .frame(width: 44, height: 32)
-                                        .contentShape(Rectangle())
+                                    .buttonStyle(.borderless)
+                                    .accessibilityLabel("\(trip.title) trip actions")
                                 }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("\(trip.title) trip actions")
+
+                                HStack(spacing: 12) {
+                                    Image(systemName: "clock")
+                                        .frame(width: 32)
+                                    Text("Edited \(DateRangeFormatting.timestamp(trip.modifiedAt))")
+                                }
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                                if let startDate = trip.startDate, let endDate = trip.endDate {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "calendar")
+                                            .frame(width: 32)
+                                        Text(DateRangeFormatting.summary(start: startDate, end: endDate))
+                                            .monospacedDigit()
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .accessibilityLabel(
+                                        "Trip dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
+                                    )
+                                }
                             }
                             .accessibilityAction(named: "Delete trip") {
                                 tripPendingDeletion = trip
@@ -202,58 +234,29 @@ private struct TripRowView: View {
     @State private var sectionCount: Int?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 14) {
-                Image(systemName: "map.fill")
-                    .frame(width: 32, height: 32)
-                    .background(.blue.opacity(0.12), in: Circle())
+        HStack(spacing: 12) {
+            Image(systemName: "map.fill")
+                .frame(width: 32, height: 32)
+                .background(.blue.opacity(0.12), in: Circle())
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(trip.title)
-                        .font(.headline)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(trip.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                if !trip.subtitle.isEmpty {
+                    Text(trip.subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    if !trip.subtitle.isEmpty {
-                        Text(trip.subtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    if let sectionCount {
-                        Text("\(sectionCount) \(sectionCount == 1 ? "section" : "sections")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                }
+                if let sectionCount {
+                    Text("\(sectionCount) \(sectionCount == 1 ? "section" : "sections")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-
-            HStack(spacing: 14) {
-                Image(systemName: "clock")
-                    .frame(width: 32)
-                Text("Edited \(DateRangeFormatting.timestamp(trip.modifiedAt))")
-            }
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if let startDate = trip.startDate, let endDate = trip.endDate {
-                HStack(spacing: 14) {
-                    Image(systemName: "calendar")
-                        .frame(width: 32)
-                    Text(
-                        DateRangeFormatting.summary(start: startDate, end: endDate),
-                    )
-                    .monospacedDigit()
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .accessibilityLabel(
-                    "Trip dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
-                )
-            }
+            Spacer(minLength: 0)
         }
-        .padding(.vertical, 4)
         .task(id: trip.id) {
             await loadSectionCount()
         }
@@ -274,6 +277,19 @@ private struct TripRowView: View {
         } catch {
             sectionCount = nil
         }
+    }
+}
+
+private struct TripNavigationButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.62 : 1)
+            .background(
+                configuration.isPressed ? Color.secondary.opacity(0.1) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
 

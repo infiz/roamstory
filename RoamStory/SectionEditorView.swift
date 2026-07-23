@@ -1189,6 +1189,7 @@ private struct ParagraphLinkEditor: View {
 private struct MediaBlockView: View {
     @Bindable var block: ContentBlock
     let onChange: () -> Void
+    @State private var isShowingFullScreenPhoto = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1197,19 +1198,37 @@ private struct MediaBlockView: View {
                     Group {
                         if block.type == .video {
                             VideoAssetView(reference: reference)
-                        } else if let linkURL = LinkAddress.normalizedURL(from: block.linkURLString) {
-                            Link(destination: linkURL) {
-                                PhotoAssetView(reference: reference)
-                                    .overlay(alignment: .topTrailing) {
-                                        Image(systemName: "link.circle.fill")
-                                            .font(.title2)
-                                            .foregroundStyle(.white, .blue)
-                                            .padding(10)
-                                    }
-                            }
-                            .accessibilityHint("Opens the photo link")
                         } else {
-                            PhotoAssetView(reference: reference)
+                            Button {
+                                isShowingFullScreenPhoto = true
+                            } label: {
+                                PhotoAssetView(reference: reference)
+                                    .frame(
+                                        width: geometry.size.width,
+                                        height: geometry.size.height
+                                    )
+                            }
+                            .frame(
+                                width: geometry.size.width,
+                                height: geometry.size.height
+                            )
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("View photo full screen")
+                            .overlay(alignment: .topTrailing) {
+                                if let linkURL = LinkAddress.normalizedURL(from: block.linkURLString) {
+                                    Link(destination: linkURL) {
+                                        Image(systemName: "link")
+                                            .font(.body.weight(.semibold))
+                                            .foregroundStyle(.white)
+                                            .frame(width: 36, height: 36)
+                                            .background(.blue.opacity(0.92), in: Circle())
+                                    }
+                                    .padding(.top, 10)
+                                    .padding(.trailing, 14)
+                                    .accessibilityLabel("Open photo link")
+                                    .accessibilityHint("Opens the attached web address")
+                                }
+                            }
                         }
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
@@ -1236,6 +1255,63 @@ private struct MediaBlockView: View {
         }
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .fullScreenCover(isPresented: $isShowingFullScreenPhoto) {
+            if let reference = block.mediaReferences.first {
+                FullScreenSinglePhotoView(
+                    reference: reference,
+                    caption: block.caption
+                )
+            }
+        }
+    }
+}
+
+private struct FullScreenSinglePhotoView: View {
+    @Environment(\.dismiss) private var dismiss
+    let reference: MediaReference
+    let caption: String
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            PhotoAssetView(
+                reference: reference,
+                fitEntireImage: true,
+                backgroundColor: .black
+            )
+            .ignoresSafeArea()
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(.black.opacity(0.55), in: Circle())
+                    }
+                    .accessibilityLabel("Close full-screen photo")
+                }
+                .padding()
+                Spacer()
+                if !caption.isEmpty {
+                    Text(caption)
+                        .font(.body)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal)
+                        .padding(.bottom, 24)
+                        .accessibilityLabel("Photo caption")
+                }
+            }
+        }
+        .statusBarHidden()
     }
 }
 
