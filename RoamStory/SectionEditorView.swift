@@ -18,6 +18,8 @@ struct SectionEditorView: View {
     @State private var isExportingDocx = false
     @State private var isExportingHTML = false
     @State private var editMode: EditMode = .inactive
+    @State private var sectionUndoManager = UndoManager()
+    @State private var undoStateVersion = 0
 
     var body: some View {
         List {
@@ -55,7 +57,10 @@ struct SectionEditorView: View {
                                 onMoveUp: { moveBlock(block.id, by: -1) },
                                 onMoveDown: { moveBlock(block.id, by: 1) }
                             )
-                            BlockEditorView(block: block) {
+                            BlockEditorView(
+                                block: block,
+                                undoManager: sectionUndoManager
+                            ) {
                                 section.touch()
                             }
                         }
@@ -84,6 +89,17 @@ struct SectionEditorView: View {
         }
         .environment(\.editMode, $editMode)
         .scrollDismissesKeyboard(.interactively)
+        .onAppear {
+            sectionUndoManager.groupsByEvent = true
+            sectionUndoManager.levelsOfUndo = 100
+            modelContext.undoManager = sectionUndoManager
+            refreshUndoAvailability()
+        }
+        .onDisappear {
+            if modelContext.undoManager === sectionUndoManager {
+                modelContext.undoManager = nil
+            }
+        }
         .contentMargins(.top, 2, for: .scrollContent)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -98,6 +114,30 @@ struct SectionEditorView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button {
+                        undo()
+                    } label: {
+                        Label(
+                            sectionUndoManager.undoMenuItemTitle,
+                            systemImage: "arrow.uturn.backward"
+                        )
+                    }
+                    .disabled(!canUndo)
+                    .keyboardShortcut("z", modifiers: .command)
+
+                    Button {
+                        redo()
+                    } label: {
+                        Label(
+                            sectionUndoManager.redoMenuItemTitle,
+                            systemImage: "arrow.uturn.forward"
+                        )
+                    }
+                    .disabled(!canRedo)
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+
+                    Divider()
+
                     Button {
                         isEditingSection = true
                     } label: {
@@ -132,9 +172,32 @@ struct SectionEditorView: View {
             }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("Done") {
+                Button {
                     dismissKeyboard()
+                } label: {
+                    Text("Done")
+                        .fontWeight(.semibold)
                 }
+                .accessibilityLabel("Done editing")
+            }
+            ToolbarItemGroup(placement: .bottomBar) {
+                Button {
+                    undo()
+                } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                }
+                .disabled(!canUndo)
+                .accessibilityHint("Reverses the most recent section change")
+
+                Button {
+                    redo()
+                } label: {
+                    Label("Redo", systemImage: "arrow.uturn.forward")
+                }
+                .disabled(!canRedo)
+                .accessibilityHint("Restores the most recently undone section change")
+
+                Spacer()
             }
         }
         .sheet(isPresented: $isEditingSection) {
@@ -215,8 +278,34 @@ struct SectionEditorView: View {
         )
     }
 
+    private var canUndo: Bool {
+        _ = undoStateVersion
+        return sectionUndoManager.canUndo
+    }
+
+    private var canRedo: Bool {
+        _ = undoStateVersion
+        return sectionUndoManager.canRedo
+    }
+
+    private func undo() {
+        dismissKeyboard()
+        sectionUndoManager.undo()
+        refreshUndoAvailability()
+    }
+
+    private func redo() {
+        dismissKeyboard()
+        sectionUndoManager.redo()
+        refreshUndoAvailability()
+    }
+
+    private func refreshUndoAvailability() {
+        undoStateVersion &+= 1
+    }
+
     private func blockInsertionDivider(at index: Int) -> some View {
-        BlockBoundaryView(isSelected: selectedInsertionIndex == index) { choice in
+        BlockBoundaryView { choice in
             selectedInsertionIndex = index
             switch choice {
             case .block(let type): addTextBlock(type)
@@ -378,18 +467,17 @@ private enum BlockInsertionChoice {
 }
 
 private struct BlockBoundaryView: View {
-    let isSelected: Bool
     let onAdd: (BlockInsertionChoice) -> Void
 
     var body: some View {
         ZStack {
             HStack(spacing: 5) {
                 Capsule()
-                    .fill(isSelected ? Color.accentColor : .secondary.opacity(0.22))
+                    .fill(.secondary.opacity(0.22))
                     .frame(maxWidth: 36)
                     .frame(height: 1)
                 Capsule()
-                    .fill(isSelected ? Color.accentColor : .secondary.opacity(0.22))
+                    .fill(.secondary.opacity(0.22))
                     .frame(maxWidth: 36)
                     .frame(height: 1)
             }
@@ -434,9 +522,9 @@ private struct BlockBoundaryView: View {
                 Label("Map", systemImage: "map")
             }
         } label: {
-            Image(systemName: isSelected ? "plus.circle.fill" : "plus.circle")
+            Image(systemName: "plus.circle")
                 .font(.caption)
-                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                .foregroundStyle(.secondary)
                 .frame(width: 44, height: 26)
             .contentShape(Rectangle())
         }
@@ -521,12 +609,19 @@ private struct BlockTypeHeader: View {
 
 private struct BlockEditorView: View {
     @Bindable var block: ContentBlock
+    let undoManager: UndoManager
     let onChange: () -> Void
 
     var body: some View {
         Group {
             switch block.type {
-            case .paragraph, .heading, .quote:
+            case .paragraph:
+                ParagraphBlockView(
+                    block: block,
+                    undoManager: undoManager,
+                    onChange: onChange
+                )
+            case .heading, .quote:
                 RichParagraphView(block: block, onChange: onChange)
             case .code:
                 CodeBlockView(block: block, onChange: onChange)
@@ -545,6 +640,108 @@ private struct BlockEditorView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .listRowSeparator(.hidden)
+    }
+}
+
+private struct ParagraphBlockView: View {
+    @Bindable var block: ContentBlock
+    let undoManager: UndoManager
+    let onChange: () -> Void
+    @State private var isEditingFullScreen = false
+
+    var body: some View {
+        Button {
+            isEditingFullScreen = true
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                if !block.title.isEmpty {
+                    Text(block.title)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                }
+
+                if block.text.isEmpty {
+                    Text("Tap to write this paragraph")
+                        .foregroundStyle(.secondary)
+                        .italic()
+                } else {
+                    Text(displayText)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                }
+
+                Label("Tap to edit full screen", systemImage: "arrow.up.left.and.arrow.down.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            block.title.isEmpty
+                ? "Edit paragraph full screen"
+                : "Edit \(block.title) paragraph full screen"
+        )
+        .fullScreenCover(isPresented: $isEditingFullScreen) {
+            FullScreenParagraphEditor(
+                block: block,
+                undoManager: undoManager,
+                onChange: onChange
+            )
+        }
+    }
+
+    private var displayText: AttributedString {
+        guard let data = block.attributedTextData,
+              let decoded = try? NSKeyedUnarchiver.unarchivedObject(
+                  ofClass: NSAttributedString.self,
+                  from: data
+              ) else {
+            return AttributedString(block.text)
+        }
+        return AttributedString(decoded)
+    }
+}
+
+private struct FullScreenParagraphEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var block: ContentBlock
+    let undoManager: UndoManager
+    let onChange: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                RichParagraphView(block: block, onChange: onChange)
+                    .padding()
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle(block.title.isEmpty ? "Edit Paragraph" : block.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismissKeyboard()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .onAppear {
+            modelContext.undoManager = undoManager
+        }
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 }
 
@@ -857,14 +1054,23 @@ private struct PhotoBlockLinkEditor: View {
 private struct GalleryBlockView: View {
     @Bindable var block: ContentBlock
     let onChange: () -> Void
+    @State private var fullScreenPhotoIndex = 0
+    @State private var isShowingFullScreenGallery = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             TabView {
-                ForEach(block.orderedMediaReferences) { reference in
-                    PhotoAssetView(reference: reference, fitEntireImage: true)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .padding(.horizontal, 2)
+                ForEach(Array(block.orderedMediaReferences.enumerated()), id: \.element.id) { index, reference in
+                    Button {
+                        fullScreenPhotoIndex = index
+                        isShowingFullScreenGallery = true
+                    } label: {
+                        PhotoAssetView(reference: reference, fitEntireImage: true)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .padding(.horizontal, 2)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("View gallery photo \(index + 1) full screen")
                 }
             }
             .frame(height: 240)
@@ -876,6 +1082,69 @@ private struct GalleryBlockView: View {
 
         }
         .padding(.vertical, 8)
+        .fullScreenCover(isPresented: $isShowingFullScreenGallery) {
+            FullScreenGalleryView(
+                references: block.orderedMediaReferences,
+                initialIndex: fullScreenPhotoIndex
+            )
+        }
+    }
+}
+
+private struct FullScreenGalleryView: View {
+    @Environment(\.dismiss) private var dismiss
+    let references: [MediaReference]
+    @State private var selectedIndex: Int
+
+    init(references: [MediaReference], initialIndex: Int) {
+        self.references = references
+        _selectedIndex = State(
+            initialValue: min(max(initialIndex, 0), max(references.count - 1, 0))
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            TabView(selection: $selectedIndex) {
+                ForEach(Array(references.enumerated()), id: \.element.id) { index, reference in
+                    PhotoAssetView(
+                        reference: reference,
+                        fitEntireImage: true,
+                        backgroundColor: .black
+                    )
+                        .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .ignoresSafeArea()
+
+            VStack {
+                HStack {
+                    Text("\(selectedIndex + 1) of \(references.count)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .frame(height: 44)
+                        .background(.black.opacity(0.55), in: Capsule())
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(.black.opacity(0.55), in: Circle())
+                    }
+                    .accessibilityLabel("Close full-screen gallery")
+                }
+                .padding()
+                Spacer()
+            }
+        }
+        .statusBarHidden()
     }
 }
 
@@ -1104,7 +1373,11 @@ private struct EditSectionView: View {
         _hasDateRange = State(initialValue: legacyStart != nil || section.endDate != nil)
         let start = legacyStart ?? DateHourRangeEditor.defaultStart
         _draftStartDate = State(initialValue: start)
-        _draftEndDate = State(initialValue: section.endDate ?? Calendar.current.date(byAdding: .hour, value: 1, to: start)!)
+        _draftEndDate = State(
+            initialValue: section.endDate
+                ?? Calendar.current.date(byAdding: .hour, value: 1, to: start)
+                ?? start.addingTimeInterval(3_600)
+        )
         if let latitude = section.latitude, let longitude = section.longitude {
             _draftCoordinate = State(initialValue: CLLocationCoordinate2D(
                 latitude: latitude,

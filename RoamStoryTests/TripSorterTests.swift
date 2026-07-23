@@ -75,6 +75,12 @@ final class TripSorterTests: XCTestCase {
         )
     }
 
+    func testParagraphUnderlineStyleDefaultsOff() {
+        let paragraph = ContentBlock(type: .paragraph)
+
+        XCTAssertFalse(paragraph.isUnderlined)
+    }
+
     func testGalleryUsesPersistedPhotoOrder() {
         let first = MediaReference(
             localIdentifier: "first",
@@ -132,6 +138,58 @@ final class TripSorterTests: XCTestCase {
         XCTAssertEqual(Calendar.current.component(.minute, from: section.startDate!), 0)
         XCTAssertEqual(Calendar.current.component(.second, from: section.endDate!), 0)
         XCTAssertGreaterThanOrEqual(section.endDate!, section.startDate!)
+    }
+
+    func testTouchingSectionStoresLastEditedTimeAndUpdatesTrip() {
+        let originalDate = Date(timeIntervalSince1970: 100)
+        let editedDate = Date(timeIntervalSince1970: 500)
+        let trip = Trip(title: "Japan", modifiedAt: originalDate)
+        let section = TripSection(
+            title: "Kyoto",
+            modifiedAt: originalDate
+        )
+        trip.sections.append(section)
+
+        section.touch(at: editedDate)
+
+        XCTAssertEqual(section.modifiedAt, editedDate)
+        XCTAssertEqual(trip.modifiedAt, editedDate)
+    }
+
+    @MainActor
+    func testSectionChangesParticipateInModelContextUndoAndRedo() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Trip.self,
+            TripSection.self,
+            ContentBlock.self,
+            MediaReference.self,
+            configurations: configuration
+        )
+        let context = container.mainContext
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        context.undoManager = undoManager
+
+        let trip = Trip(title: "Japan")
+        let section = TripSection(title: "Original")
+        trip.sections.append(section)
+        context.insert(trip)
+        try context.save()
+        undoManager.removeAllActions()
+
+        undoManager.beginUndoGrouping()
+        section.title = "Edited"
+        section.touch(at: Date(timeIntervalSince1970: 500))
+        undoManager.endUndoGrouping()
+
+        XCTAssertTrue(undoManager.canUndo)
+        undoManager.undo()
+        XCTAssertEqual(section.title, "Original")
+        XCTAssertTrue(undoManager.canRedo)
+
+        undoManager.redo()
+        XCTAssertEqual(section.title, "Edited")
     }
 
     func testCodeBlockStoresSourceText() {
@@ -199,6 +257,12 @@ final class TripSorterTests: XCTestCase {
         XCTAssertNotNil(data.range(of: Data("<!doctype html>".utf8)))
         XCTAssertNotNil(data.range(of: Data("Kyoto &amp; Tea".utf8)))
         XCTAssertNotNil(data.range(of: Data("Tea &lt; ceremony".utf8)))
+        XCTAssertNotNil(data.range(of: Data(".gallery-slider".utf8)))
+        XCTAssertNotNil(data.range(of: Data("scroll-snap-type:x mandatory".utf8)))
+        XCTAssertNotNil(data.range(of: Data("photo-lightbox".utf8)))
+        XCTAssertNotNil(data.range(of: Data("lightbox.showModal()".utf8)))
+        XCTAssertNotNil(data.range(of: Data("showNextLightboxPhoto".utf8)))
+        XCTAssertNotNil(data.range(of: Data("touchend".utf8)))
         XCTAssertNil(data.range(of: Data("Do Not Include".utf8)))
     }
 

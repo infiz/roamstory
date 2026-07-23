@@ -2,6 +2,19 @@ import AVKit
 import Photos
 import SwiftUI
 
+enum PhotoLibraryAccess {
+    static func isAuthorized() async -> Bool {
+        let currentStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        let status: PHAuthorizationStatus
+        if currentStatus == .notDetermined {
+            status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+        } else {
+            status = currentStatus
+        }
+        return status == .authorized || status == .limited
+    }
+}
+
 private enum PhotoThumbnailCache {
     static let images: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
@@ -15,6 +28,7 @@ struct PhotoAssetView: View {
     let reference: MediaReference
     var showVideoBadge = false
     var fitEntireImage = false
+    var backgroundColor: Color?
 
     @State private var image: UIImage?
     @State private var isMissing = false
@@ -52,7 +66,10 @@ struct PhotoAssetView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .background(fitEntireImage ? Color.white : Color.secondary.opacity(0.08))
+        .background(
+            backgroundColor
+                ?? (fitEntireImage ? Color.white : Color.secondary.opacity(0.08))
+        )
         .task(id: reference.localIdentifier) {
             await loadImage()
         }
@@ -67,8 +84,7 @@ struct PhotoAssetView: View {
             return
         }
 
-        let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-        guard status == .authorized || status == .limited else {
+        guard await PhotoLibraryAccess.isAuthorized() else {
             isMissing = true
             return
         }
@@ -167,8 +183,7 @@ struct VideoAssetView: View {
         isLoadingVideo = true
         defer { isLoadingVideo = false }
 
-        let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-        guard status == .authorized || status == .limited else {
+        guard await PhotoLibraryAccess.isAuthorized() else {
             isMissing = true
             return
         }

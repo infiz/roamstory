@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -12,7 +13,6 @@ final class RichTextFormattingController: ObservableObject {
     @Published private(set) var hasTextSelection = false
 
     weak var textView: UITextView?
-    var onChange: (() -> Void)?
     private var pendingSelectionRefresh: Task<Void, Never>?
 
     func attach(_ textView: UITextView) {
@@ -55,8 +55,13 @@ final class RichTextFormattingController: ObservableObject {
     func toggleUnderline() {
         guard let textView else { return }
         let enabled = !isUnderlined
-        applyAttribute(.underlineStyle, value: enabled ? NSUnderlineStyle.single.rawValue : 0)
-        textView.typingAttributes[.underlineStyle] = enabled ? NSUnderlineStyle.single.rawValue : 0
+        if enabled {
+            applyAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue)
+            textView.typingAttributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+        } else {
+            removeAttribute(.underlineStyle)
+            textView.typingAttributes.removeValue(forKey: .underlineStyle)
+        }
         isUnderlined = enabled
         commitChange()
     }
@@ -103,7 +108,9 @@ final class RichTextFormattingController: ObservableObject {
         fontSize = font.pointSize
         isBold = font.fontDescriptor.symbolicTraits.contains(.traitBold)
         isItalic = font.fontDescriptor.symbolicTraits.contains(.traitItalic)
-        let underline = attributes[.underlineStyle] as? Int ?? 0
+        let underline = (attributes[.underlineStyle] as? NSNumber)?.intValue
+            ?? (attributes[.underlineStyle] as? Int)
+            ?? 0
         isUnderlined = underline != 0
         isLinked = attributes[.link] != nil
         hasTextSelection = textView.selectedRange.length > 0
@@ -154,6 +161,15 @@ final class RichTextFormattingController: ObservableObject {
         textView.selectedRange = selectedRange
     }
 
+    private func removeAttribute(_ key: NSAttributedString.Key) {
+        guard let textView, textView.selectedRange.length > 0 else { return }
+        let selectedRange = textView.selectedRange
+        let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+        mutable.removeAttribute(key, range: selectedRange)
+        textView.attributedText = mutable
+        textView.selectedRange = selectedRange
+    }
+
     private func representativeAttributes(in textView: UITextView) -> [NSAttributedString.Key: Any] {
         let selectedRange = textView.selectedRange
         if selectedRange.length > 0, textView.attributedText.length > 0 {
@@ -172,7 +188,6 @@ final class RichTextFormattingController: ObservableObject {
     private func commitChange() {
         guard let textView else { return }
         textView.delegate?.textViewDidChange?(textView)
-        onChange?()
     }
 }
 
@@ -189,12 +204,18 @@ enum LinkAddress {
 }
 
 struct RichTextEditor: UIViewRepresentable {
+    @Environment(\.modelContext) private var modelContext
     @Bindable var block: ContentBlock
     let controller: RichTextFormattingController
     let onChange: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(block: block, controller: controller, onChange: onChange)
+        Coordinator(
+            block: block,
+            controller: controller,
+            modelContext: modelContext,
+            onChange: onChange
+        )
     }
 
     func makeUIView(context: Context) -> UITextView {
@@ -209,48 +230,173 @@ struct RichTextEditor: UIViewRepresentable {
             .foregroundColor: UIColor.link,
             .underlineStyle: NSUnderlineStyle.single.rawValue,
         ]
+        let keyboardToolbar = UIToolbar()
+        keyboardToolbar.items = [
+            UIBarButtonItem(
+                barButtonSystemItem: .flexibleSpace,
+                target: nil,
+                action: nil
+            ),
+            UIBarButtonItem(
+                title: "Done",
+                style: .plain,
+                target: context.coordinator,
+                action: #selector(Coordinator.dismissKeyboard(_:))
+            ),
+        ]
+        keyboardToolbar.sizeToFit()
+        textView.inputAccessoryView = keyboardToolbar
 
         let attributedText = decodedAttributedText(for: block)
         textView.attributedText = attributedText
         textView.typingAttributes = defaultAttributes(for: block)
         controller.attach(textView)
-        controller.onChange = onChange
         return textView
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.block = block
+        context.coordinator.modelContext = modelContext
         context.coordinator.onChange = onChange
-        controller.onChange = onChange
 
         if !textView.isFirstResponder, textView.text != block.text {
             textView.attributedText = decodedAttributedText(for: block)
         }
     }
 
+    static func dismantleUIView(_ textView: UITextView, coordinator: Coordinator) {
+        coordinator.commitPendingUndo()
+        textView.delegate = nil
+    }
+
+    @MainActor
     final class Coordinator: NSObject, UITextViewDelegate {
+        private struct TextSnapshot {
+            let text: String
+            let attributedTextData: Data?
+
+            func differs(from other: TextSnapshot) -> Bool {
+                text != other.text || attributedTextData != other.attributedTextData
+            }
+        }
+
         var block: ContentBlock
         let controller: RichTextFormattingController
+        var modelContext: ModelContext
         var onChange: () -> Void
+        private var pendingOriginalSnapshot: TextSnapshot?
+        private var pendingCommitTask: Task<Void, Never>?
 
         init(
             block: ContentBlock,
             controller: RichTextFormattingController,
+            modelContext: ModelContext,
             onChange: @escaping () -> Void
         ) {
             self.block = block
             self.controller = controller
+            self.modelContext = modelContext
             self.onChange = onChange
         }
 
         func textViewDidChange(_ textView: UITextView) {
-            block.text = textView.text
-            block.attributedTextData = Self.archive(textView.attributedText)
-            onChange()
+            if pendingOriginalSnapshot == nil {
+                pendingOriginalSnapshot = snapshot(of: block)
+            }
+
+            schedulePendingUndoCommit()
+            if textView.text.last?.isWhitespace == true {
+                commitPendingUndo()
+            }
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
             controller.scheduleSelectionStateRefresh()
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            commitPendingUndo()
+        }
+
+        @objc func dismissKeyboard(_ sender: UIBarButtonItem) {
+            commitPendingUndo()
+            controller.textView?.resignFirstResponder()
+        }
+
+        private func snapshot(of block: ContentBlock) -> TextSnapshot {
+            TextSnapshot(
+                text: block.text,
+                attributedTextData: block.attributedTextData
+            )
+        }
+
+        private func schedulePendingUndoCommit() {
+            pendingCommitTask?.cancel()
+            pendingCommitTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(900))
+                guard !Task.isCancelled else { return }
+                self?.commitPendingUndo()
+            }
+        }
+
+        func commitPendingUndo() {
+            pendingCommitTask?.cancel()
+            pendingCommitTask = nil
+            guard let originalSnapshot = pendingOriginalSnapshot,
+                  let textView = controller.textView else { return }
+            pendingOriginalSnapshot = nil
+            let currentSnapshot = TextSnapshot(
+                text: textView.text,
+                attributedTextData: Self.archive(textView.attributedText)
+            )
+            guard originalSnapshot.differs(from: currentSnapshot) else { return }
+
+            withoutAutomaticUndoRegistration {
+                block.text = currentSnapshot.text
+                block.attributedTextData = currentSnapshot.attributedTextData
+                onChange()
+            }
+
+            guard let undoManager = modelContext.undoManager else { return }
+
+            undoManager.registerUndo(withTarget: self) { coordinator in
+                coordinator.restore(originalSnapshot)
+            }
+            undoManager.setActionName("Edit Text")
+        }
+
+        private func restore(_ snapshot: TextSnapshot) {
+            commitPendingUndo()
+            let inverseSnapshot = self.snapshot(of: block)
+            withoutAutomaticUndoRegistration {
+                block.text = snapshot.text
+                block.attributedTextData = snapshot.attributedTextData
+                if let textView = controller.textView {
+                    textView.attributedText = Self.decode(snapshot)
+                    textView.typingAttributes = textView.attributedText.length > 0
+                        ? textView.attributedText.attributes(at: textView.attributedText.length - 1, effectiveRange: nil)
+                        : textView.typingAttributes
+                }
+                onChange()
+            }
+
+            if let undoManager = modelContext.undoManager {
+                undoManager.registerUndo(withTarget: self) { coordinator in
+                    coordinator.restore(inverseSnapshot)
+                }
+                undoManager.setActionName("Edit Text")
+            }
+        }
+
+        private func withoutAutomaticUndoRegistration(_ changes: () -> Void) {
+            guard let undoManager = modelContext.undoManager,
+                  undoManager.isUndoRegistrationEnabled else {
+                changes()
+                return
+            }
+            undoManager.disableUndoRegistration()
+            changes()
+            undoManager.enableUndoRegistration()
         }
 
         private static func archive(_ attributedText: NSAttributedString) -> Data? {
@@ -258,6 +404,17 @@ struct RichTextEditor: UIViewRepresentable {
                 withRootObject: attributedText,
                 requiringSecureCoding: true
             )
+        }
+
+        private static func decode(_ snapshot: TextSnapshot) -> NSAttributedString {
+            if let data = snapshot.attributedTextData,
+               let decoded = try? NSKeyedUnarchiver.unarchivedObject(
+                   ofClass: NSAttributedString.self,
+                   from: data
+               ) {
+                return decoded
+            }
+            return NSAttributedString(string: snapshot.text)
         }
     }
 
@@ -280,10 +437,13 @@ struct RichTextEditor: UIViewRepresentable {
         if block.isItalic { traits.insert(.traitItalic) }
         descriptor = descriptor.withSymbolicTraits(traits) ?? descriptor
 
-        return [
+        var attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont(descriptor: descriptor, size: block.fontSize),
             .foregroundColor: UIColor.label,
-            .underlineStyle: block.isUnderlined ? NSUnderlineStyle.single.rawValue : 0,
         ]
+        if block.isUnderlined {
+            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+        }
+        return attributes
     }
 }
