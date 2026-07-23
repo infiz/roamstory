@@ -54,19 +54,29 @@ struct DocxExporter {
         }
     }
 
-    static func export(title: String, sections: [TripSection]) async throws -> URL {
+    static func export(
+        title: String,
+        sections: [TripSection],
+        progress: ((Double, String) -> Void)? = nil
+    ) async throws -> URL {
         guard !sections.isEmpty else { throw DocxExportError.noSections }
+        progress?(0.02, "Preparing document…")
 
         var context = BuildContext()
         var body = heading(title, level: 1)
 
-        for section in sections {
+        for (index, section) in sections.enumerated() {
+            let sectionProgress = 0.08 + (Double(index) / Double(sections.count)) * 0.78
+            progress?(sectionProgress, "Processing \(section.title)…")
+            await Task.yield()
             body += heading(section.title, level: 2)
             body += sectionMetadata(section)
 
             for block in section.orderedBlocks {
                 body += await render(block: block, context: &context)
             }
+            let completedProgress = 0.08 + (Double(index + 1) / Double(sections.count)) * 0.78
+            progress?(completedProgress, "Processed \(section.title)")
         }
 
         body += """
@@ -111,7 +121,10 @@ struct DocxExporter {
         let safeTitle = sanitizedFilename(title)
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(safeTitle)-\(UUID().uuidString.prefix(8)).docx")
+        progress?(0.9, "Packaging Word document…")
+        await Task.yield()
         try ZipPackageWriter.write(entries: entries, to: outputURL)
+        progress?(1, "Document ready")
         return outputURL
     }
 
@@ -204,8 +217,7 @@ struct DocxExporter {
     }
 
     private static func loadImage(reference: MediaReference) async -> UIImage? {
-        let authorization = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-        guard authorization == .authorized || authorization == .limited else { return nil }
+        guard await PhotoLibraryAccess.isAuthorized() else { return nil }
 
         let assets = PHAsset.fetchAssets(
             withLocalIdentifiers: [reference.localIdentifier],
@@ -384,6 +396,8 @@ struct DocxExportView: View {
     @State private var selectedSectionIDs: Set<UUID>
     @State private var exportedURL: URL?
     @State private var isGenerating = false
+    @State private var exportProgress = 0.0
+    @State private var progressLabel = ""
     @State private var errorMessage: String?
 
     init(title: String, sections: [TripSection], allowsSelection: Bool) {
@@ -427,6 +441,23 @@ struct DocxExportView: View {
                 }
 
                 Section {
+                    if isGenerating {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(progressLabel)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(exportProgress, format: .percent.precision(.fractionLength(0)))
+                                    .monospacedDigit()
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            ProgressView(value: exportProgress, total: 1)
+                                .progressViewStyle(.linear)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+
                     if let exportedURL {
                         ShareLink(item: exportedURL) {
                             Label("Share DOCX", systemImage: "square.and.arrow.up")
@@ -438,7 +469,7 @@ struct DocxExportView: View {
                             generate()
                         } label: {
                             if isGenerating {
-                                ProgressView()
+                                Text("Generating DOCX…")
                                     .frame(maxWidth: .infinity)
                             } else {
                                 Label("Generate DOCX", systemImage: "doc.badge.arrow.up")
@@ -489,13 +520,18 @@ struct DocxExportView: View {
 
     private func generate() {
         isGenerating = true
+        exportProgress = 0
+        progressLabel = "Preparing document…"
         errorMessage = nil
         Task {
             do {
                 exportedURL = try await DocxExporter.export(
                     title: title,
                     sections: selectedSections
-                )
+                ) { progress, label in
+                    exportProgress = progress
+                    progressLabel = label
+                }
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -515,80 +551,102 @@ enum ZipPackageWriter {
     }
 
     static func write(entries: [(String, Data)], to url: URL) throws {
-        var archive = Data()
         var centralEntries: [CentralEntry] = []
         let (dosTime, dosDate) = dosTimestamp(for: .now)
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+        guard fileManager.createFile(atPath: url.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let fileHandle = try FileHandle(forWritingTo: url)
 
-        for (name, contents) in entries {
-            guard let offset = UInt32(exactly: archive.count),
-                  let size = UInt32(exactly: contents.count) else {
+        do {
+            var currentOffset: UInt64 = 0
+
+            for (name, contents) in entries {
+                guard let offset = UInt32(exactly: currentOffset),
+                      let size = UInt32(exactly: contents.count) else {
+                    throw DocxExportError.packageTooLarge
+                }
+                let nameData = Data(name.utf8)
+                let checksum = crc32(contents)
+                var localHeader = Data()
+                localHeader.appendLE(UInt32(0x04034B50))
+                localHeader.appendLE(UInt16(20))
+                localHeader.appendLE(UInt16(0x0800))
+                localHeader.appendLE(UInt16(0))
+                localHeader.appendLE(dosTime)
+                localHeader.appendLE(dosDate)
+                localHeader.appendLE(checksum)
+                localHeader.appendLE(size)
+                localHeader.appendLE(size)
+                localHeader.appendLE(UInt16(nameData.count))
+                localHeader.appendLE(UInt16(0))
+                localHeader.append(nameData)
+
+                try fileHandle.write(contentsOf: localHeader)
+                try fileHandle.write(contentsOf: contents)
+                currentOffset += UInt64(localHeader.count) + UInt64(contents.count)
+
+                centralEntries.append(CentralEntry(
+                    nameData: nameData,
+                    crc32: checksum,
+                    size: size,
+                    offset: offset,
+                    dosTime: dosTime,
+                    dosDate: dosDate
+                ))
+            }
+
+            guard let centralOffset = UInt32(exactly: currentOffset) else {
                 throw DocxExportError.packageTooLarge
             }
-            let nameData = Data(name.utf8)
-            let checksum = crc32(contents)
+            var centralDirectory = Data()
+            for entry in centralEntries {
+                centralDirectory.appendLE(UInt32(0x02014B50))
+                centralDirectory.appendLE(UInt16(20))
+                centralDirectory.appendLE(UInt16(20))
+                centralDirectory.appendLE(UInt16(0x0800))
+                centralDirectory.appendLE(UInt16(0))
+                centralDirectory.appendLE(entry.dosTime)
+                centralDirectory.appendLE(entry.dosDate)
+                centralDirectory.appendLE(entry.crc32)
+                centralDirectory.appendLE(entry.size)
+                centralDirectory.appendLE(entry.size)
+                centralDirectory.appendLE(UInt16(entry.nameData.count))
+                centralDirectory.appendLE(UInt16(0))
+                centralDirectory.appendLE(UInt16(0))
+                centralDirectory.appendLE(UInt16(0))
+                centralDirectory.appendLE(UInt16(0))
+                centralDirectory.appendLE(UInt32(0))
+                centralDirectory.appendLE(entry.offset)
+                centralDirectory.append(entry.nameData)
+            }
 
-            archive.appendLE(UInt32(0x04034B50))
-            archive.appendLE(UInt16(20))
-            archive.appendLE(UInt16(0x0800))
-            archive.appendLE(UInt16(0))
-            archive.appendLE(dosTime)
-            archive.appendLE(dosDate)
-            archive.appendLE(checksum)
-            archive.appendLE(size)
-            archive.appendLE(size)
-            archive.appendLE(UInt16(nameData.count))
-            archive.appendLE(UInt16(0))
-            archive.append(nameData)
-            archive.append(contents)
+            guard let centralSize = UInt32(exactly: centralDirectory.count),
+                  let entryCount = UInt16(exactly: centralEntries.count) else {
+                throw DocxExportError.packageTooLarge
+            }
+            var footer = Data()
+            footer.appendLE(UInt32(0x06054B50))
+            footer.appendLE(UInt16(0))
+            footer.appendLE(UInt16(0))
+            footer.appendLE(entryCount)
+            footer.appendLE(entryCount)
+            footer.appendLE(centralSize)
+            footer.appendLE(centralOffset)
+            footer.appendLE(UInt16(0))
 
-            centralEntries.append(CentralEntry(
-                nameData: nameData,
-                crc32: checksum,
-                size: size,
-                offset: offset,
-                dosTime: dosTime,
-                dosDate: dosDate
-            ))
+            try fileHandle.write(contentsOf: centralDirectory)
+            try fileHandle.write(contentsOf: footer)
+            try fileHandle.close()
+        } catch {
+            try? fileHandle.close()
+            try? fileManager.removeItem(at: url)
+            throw error
         }
-
-        guard let centralOffset = UInt32(exactly: archive.count) else {
-            throw DocxExportError.packageTooLarge
-        }
-        for entry in centralEntries {
-            archive.appendLE(UInt32(0x02014B50))
-            archive.appendLE(UInt16(20))
-            archive.appendLE(UInt16(20))
-            archive.appendLE(UInt16(0x0800))
-            archive.appendLE(UInt16(0))
-            archive.appendLE(entry.dosTime)
-            archive.appendLE(entry.dosDate)
-            archive.appendLE(entry.crc32)
-            archive.appendLE(entry.size)
-            archive.appendLE(entry.size)
-            archive.appendLE(UInt16(entry.nameData.count))
-            archive.appendLE(UInt16(0))
-            archive.appendLE(UInt16(0))
-            archive.appendLE(UInt16(0))
-            archive.appendLE(UInt16(0))
-            archive.appendLE(UInt32(0))
-            archive.appendLE(entry.offset)
-            archive.append(entry.nameData)
-        }
-
-        guard let centralSize = UInt32(exactly: archive.count - Int(centralOffset)),
-              let entryCount = UInt16(exactly: centralEntries.count) else {
-            throw DocxExportError.packageTooLarge
-        }
-        archive.appendLE(UInt32(0x06054B50))
-        archive.appendLE(UInt16(0))
-        archive.appendLE(UInt16(0))
-        archive.appendLE(entryCount)
-        archive.appendLE(entryCount)
-        archive.appendLE(centralSize)
-        archive.appendLE(centralOffset)
-        archive.appendLE(UInt16(0))
-
-        try archive.write(to: url, options: .atomic)
     }
 
     private static func dosTimestamp(for date: Date) -> (UInt16, UInt16) {
@@ -609,13 +667,20 @@ enum ZipPackageWriter {
     private static func crc32(_ data: Data) -> UInt32 {
         var crc: UInt32 = 0xFFFF_FFFF
         for byte in data {
-            var value = (crc ^ UInt32(byte)) & 0xFF
-            for _ in 0..<8 {
-                value = (value & 1) == 1 ? (value >> 1) ^ 0xEDB8_8320 : value >> 1
-            }
-            crc = (crc >> 8) ^ value
+            let index = Int((crc ^ UInt32(byte)) & 0xFF)
+            crc = crc32Table[index] ^ (crc >> 8)
         }
         return crc ^ 0xFFFF_FFFF
+    }
+
+    private static let crc32Table: [UInt32] = (0..<256).map { index in
+        var value = UInt32(index)
+        for _ in 0..<8 {
+            value = (value & 1) == 1
+                ? (value >> 1) ^ 0xEDB8_8320
+                : value >> 1
+        }
+        return value
     }
 }
 
