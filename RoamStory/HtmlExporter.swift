@@ -57,17 +57,21 @@ struct HtmlExporter {
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>\(htmlEscape(title))</title>
           <style>
-            :root { color-scheme: light dark; --paper:#fffdf8; --ink:#1d2530; --muted:#68717c; --accent:#e76542; --line:#d9d5cc; }
+            :root { color-scheme: light dark; --paper:#f7f5f0; --panel:#fff; --ink:#1d2530; --muted:#68717c; --accent:#e76542; --line:#d9d5cc; }
             * { box-sizing:border-box; }
             body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:#eef1f4; color:var(--ink); line-height:1.62; }
-            main { width:min(900px,calc(100% - 28px)); margin:28px auto; background:var(--paper); padding:clamp(22px,5vw,64px); border-radius:18px; box-shadow:0 12px 40px #17202c18; }
+            main { width:min(900px,calc(100% - 28px)); margin:28px auto; background:var(--paper); padding:clamp(18px,4vw,44px); border-radius:18px; box-shadow:0 12px 40px #17202c18; }
             h1 { font-family:Georgia,serif; font-size:clamp(2rem,6vw,3.8rem); line-height:1.08; margin:0 0 2rem; }
             h2 { font-family:Georgia,serif; font-size:2rem; margin:2.6rem 0 .25rem; padding-top:1.5rem; border-top:1px solid var(--line); }
             h3 { font-size:1.25rem; margin:1.7rem 0 .45rem; }
             .meta,.caption,.coordinates { color:var(--muted); font-size:.9rem; }
-            .block { margin:1.2rem 0; }
-            img,video { display:block; width:100%; max-height:70vh; object-fit:contain; border-radius:12px; background:#101722; }
-            .gallery-slider { position:relative; border-radius:12px; overflow:hidden; background:white; }
+            .block { display:block; width:100%; max-width:100%; margin:10px 0; padding:12px; overflow:hidden; border:1px solid var(--line); border-radius:14px; background:var(--panel); box-shadow:0 1px 3px #17202c0d; }
+            .block > :first-child { margin-top:0; }
+            .block > :last-child { margin-bottom:0; }
+            .block h3 { margin:0 0 .55rem; }
+            .block p { margin:.45rem 0; }
+            img,video { display:block; width:100%; max-width:100%; height:auto; max-height:70vh; object-fit:contain; border-radius:12px; background:#101722; }
+            .gallery-slider { position:relative; width:100%; max-width:100%; border-radius:12px; overflow:hidden; background:white; }
             .gallery-track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; overscroll-behavior-x:contain; }
             .gallery-track::-webkit-scrollbar { display:none; }
             .gallery-slide { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; display:flex; flex-direction:column; justify-content:center; min-width:0; }
@@ -90,13 +94,14 @@ struct HtmlExporter {
             .lightbox-next { right:max(16px,env(safe-area-inset-right)); }
             .lightbox-position { position:fixed; z-index:4; left:50%; bottom:max(18px,env(safe-area-inset-bottom)); translate:-50% 0; padding:7px 12px; border-radius:999px; background:#000a; color:white; font-size:.9rem; }
             .lightbox-caption { position:fixed; z-index:4; left:50%; bottom:max(62px,calc(env(safe-area-inset-bottom) + 62px)); translate:-50% 0; width:min(680px,calc(100% - 40px)); padding:9px 13px; border-radius:10px; background:#000a; color:white; text-align:center; }
-            blockquote { margin:1.2rem 0; padding:.5rem 1.2rem; border-left:4px solid var(--accent); color:#4f5864; }
-            pre { overflow:auto; padding:1rem; border-radius:10px; background:#18202b; color:#f4f6f8; font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
-            hr { border:0; border-top:1px solid var(--line); margin:2rem 0; }
+            blockquote { margin:.25rem 0; padding:.5rem 1.2rem; border-left:4px solid var(--accent); color:#4f5864; }
+            pre { width:100%; margin:0; overflow:auto; padding:1rem; border-radius:10px; background:#18202b; color:#f4f6f8; font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
+            hr { width:100%; border:0; border-top:1px solid var(--line); margin:0; }
             a { color:#1769aa; text-decoration-thickness:.08em; }
             .linked-media { position:relative; display:block; }
-            .linked-media::after { content:"↗"; position:absolute; top:10px; right:10px; width:34px; height:34px; display:grid; place-items:center; border-radius:50%; background:#1769aae8; color:white; font-weight:700; }
-            @media (prefers-color-scheme:dark) { :root { --paper:#171b21; --ink:#f0f2f4; --muted:#a9b0b9; --line:#343b44; } body { background:#0d1117; } blockquote { color:#c1c7ce; } }
+            .photo-viewer-image { cursor:zoom-in; }
+            .media-link-badge { position:absolute; z-index:2; top:10px; right:10px; width:38px; height:38px; display:grid; place-items:center; border-radius:50%; background:#1769aae8; color:white; font-size:1.15rem; font-weight:700; text-decoration:none; box-shadow:0 2px 8px #0005; }
+            @media (prefers-color-scheme:dark) { :root { --paper:#12161c; --panel:#1a1f26; --ink:#f0f2f4; --muted:#a9b0b9; --line:#343b44; } body { background:#0d1117; } blockquote { color:#c1c7ce; } }
             @media print { body { background:white; } main { width:100%; margin:0; padding:0; box-shadow:none; } section { break-inside:avoid-page; } }
           </style>
         </head>
@@ -218,6 +223,15 @@ struct HtmlExporter {
               });
               update();
             });
+
+            document.querySelectorAll('.photo-viewer-image').forEach((image) => {
+              image.addEventListener('click', () => {
+                lightboxImages = [image];
+                lightboxIndex = 0;
+                updateLightbox();
+                lightbox.showModal();
+              });
+            });
           </script>
         </body>
         </html>
@@ -258,7 +272,7 @@ struct HtmlExporter {
     private static func render(block: ContentBlock, context: inout BuildContext) async -> String {
         switch block.type {
         case .heading:
-            return "<h3>\(htmlEscape(block.text))</h3>"
+            return "<div class=\"block\"><h3>\(htmlEscape(block.text))</h3></div>"
         case .paragraph:
             let title = block.title.isEmpty ? "" : "<h3>\(htmlEscape(block.title))</h3>"
             return "<div class=\"block\">\(title)<p>\(richTextHTML(block))</p></div>"
@@ -266,9 +280,9 @@ struct HtmlExporter {
             let title = block.title.isEmpty ? "" : "<h3>\(htmlEscape(block.title))</h3>"
             return "<div class=\"block\">\(title)<blockquote>\(richTextHTML(block))</blockquote></div>"
         case .code:
-            return "<pre><code>\(htmlEscape(block.text))</code></pre>"
+            return "<div class=\"block\"><pre><code>\(htmlEscape(block.text))</code></pre></div>"
         case .divider:
-            return "<hr>"
+            return "<div class=\"block\"><hr></div>"
         case .photo:
             guard let reference = block.orderedMediaReferences.first,
                   let image = await loadImage(reference: reference),
@@ -276,10 +290,17 @@ struct HtmlExporter {
                 return "<p class=\"block meta\">Photo unavailable</p>"
             }
             let path = context.addAsset(data: data, extension: "jpg")
-            let imageHTML = "<img src=\"\(path)\" alt=\"\(attributeEscape(block.caption.isEmpty ? "Travel journal photo" : block.caption))\">"
+            let imageHTML = """
+            <img class="photo-viewer-image" src="\(path)" alt="\(attributeEscape(block.caption.isEmpty ? "Travel journal photo" : block.caption))" data-caption="\(attributeEscape(block.caption))">
+            """
             let linkedImage: String
             if let url = LinkAddress.normalizedURL(from: block.linkURLString) {
-                linkedImage = "<a class=\"linked-media\" href=\"\(attributeEscape(url.absoluteString))\">\(imageHTML)</a>"
+                linkedImage = """
+                <div class="linked-media">
+                  \(imageHTML)
+                  <a class="media-link-badge" href="\(attributeEscape(url.absoluteString))" aria-label="Open photo link">↗</a>
+                </div>
+                """
             } else {
                 linkedImage = imageHTML
             }
@@ -307,8 +328,8 @@ struct HtmlExporter {
             let galleryID = context.nextGalleryID()
             let galleryTitle = block.title.isEmpty ? "" : "<h3>\(htmlEscape(block.title))</h3>"
             return """
-            \(galleryTitle)
             <figure class="block">
+              \(galleryTitle)
               <div class="gallery-slider" id="\(galleryID)" aria-label="Photo gallery">
                 <div class="gallery-track">\(images)</div>
                 <button class="gallery-button gallery-previous" type="button" aria-label="Previous photo">‹</button>
