@@ -37,24 +37,55 @@ struct SectionEditorView: View {
     var body: some View {
         List {
             if let startDate = section.startDate, let endDate = section.endDate {
-                Label {
-                    Text(DateRangeFormatting.summary(start: startDate, end: endDate))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                        .allowsTightening(true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } icon: {
-                    Image(systemName: "calendar")
+                HStack {
+                    Label {
+                        Text(DateRangeFormatting.summary(start: startDate, end: endDate))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                            .allowsTightening(true)
+                    } icon: {
+                        Image(systemName: "calendar")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 8)
+
+                    Text(section.formattedDataSize)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.secondary.opacity(0.12), in: Capsule())
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .padding(.vertical, 0)
                 .listRowInsets(
-                    EdgeInsets(top: 3, leading: 14, bottom: 3, trailing: 14)
+                    EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
                 )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .environment(\.defaultMinListRowHeight, 0)
                 .accessibilityLabel(
                     "Section dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
                 )
+            } else {
+                HStack {
+                    Spacer()
+                    Text(section.formattedDataSize)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.secondary.opacity(0.12), in: Capsule())
+                }
+                .padding(.vertical, 0)
+                .listRowInsets(
+                    EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .environment(\.defaultMinListRowHeight, 0)
             }
 
             if section.orderedBlocks.isEmpty {
@@ -176,11 +207,17 @@ struct SectionEditorView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Text(section.title)
                         .font(.headline)
                         .lineLimit(1)
                     sectionMetadataPill
+                    Text(section.formattedDataSize)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.secondary.opacity(0.12), in: Capsule())
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -335,6 +372,7 @@ struct SectionEditorView: View {
                 if let blockPendingDeletion {
                     markBlockChanged(blockPendingDeletion.id)
                     modelContext.delete(blockPendingDeletion)
+                    try? modelContext.save()
                     normalizeBlockOrder()
                     section.touch()
                 }
@@ -1690,17 +1728,50 @@ private struct MapBlockView: View {
     @Bindable var block: ContentBlock
     let onChange: () -> Void
 
+    @State private var position: MapCameraPosition = .automatic
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let section = block.section,
                let latitude = section.latitude,
                let longitude = section.longitude {
                 let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-                Map(initialPosition: .region(MKCoordinateRegion(
-                    center: coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                ))) {
-                    Marker(section.placeName.isEmpty ? section.title : section.placeName, coordinate: coordinate)
+                ZStack(alignment: .topTrailing) {
+                    Map(position: $position) {
+                        Marker(section.placeName.isEmpty ? section.title : section.placeName, coordinate: coordinate)
+                    }
+                    .mapControls {
+                        MapCompass()
+                        MapScaleView()
+                    }
+                    .onAppear {
+                        position = .camera(MapCamera(
+                            centerCoordinate: coordinate,
+                            distance: 3000,
+                            heading: 0,
+                            pitch: 0
+                        ))
+                    }
+
+                    Button {
+                        withAnimation(.easeInOut) {
+                            position = .camera(MapCamera(
+                                centerCoordinate: coordinate,
+                                distance: 3000,
+                                heading: 0,
+                                pitch: 0
+                            ))
+                        }
+                    } label: {
+                        Image(systemName: "location.north.line.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .padding(8)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+                    }
+                    .padding(8)
+                    .accessibilityLabel("Recenter map on location and face north")
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 220)
@@ -1979,6 +2050,7 @@ private struct MapLocationPicker: View {
     @State private var position: MapCameraPosition
     @State private var isSearching = false
 
+    private let initialCoordinate: CLLocationCoordinate2D?
     let onSelect: (String, CLLocationCoordinate2D) -> Void
 
     init(
@@ -1986,6 +2058,7 @@ private struct MapLocationPicker: View {
         initialCoordinate: CLLocationCoordinate2D?,
         onSelect: @escaping (String, CLLocationCoordinate2D) -> Void
     ) {
+        self.initialCoordinate = initialCoordinate
         _selectedName = State(initialValue: initialName)
         _selectedCoordinate = State(initialValue: initialCoordinate)
         let region = MKCoordinateRegion(
@@ -2023,24 +2096,48 @@ private struct MapLocationPicker: View {
                 }
 
                 MapReader { proxy in
-                    Map(position: $position) {
-                        if let selectedCoordinate {
-                            Marker(
-                                selectedName.isEmpty ? "Selected location" : selectedName,
-                                coordinate: selectedCoordinate
-                            )
+                    ZStack(alignment: .topTrailing) {
+                        Map(position: $position) {
+                            if let selectedCoordinate {
+                                Marker(
+                                    selectedName.isEmpty ? "Selected location" : selectedName,
+                                    coordinate: selectedCoordinate
+                                )
+                            }
                         }
-                    }
-                    .mapControls {
-                        MapCompass()
-                        MapScaleView()
-                    }
-                    .onTapGesture { point in
-                        guard let coordinate = proxy.convert(point, from: .local) else { return }
-                        selectedCoordinate = coordinate
-                        selectedName = "Dropped Pin"
-                        searchResults = []
-                        reverseGeocode(coordinate)
+                        .mapControls {
+                            MapCompass()
+                            MapScaleView()
+                        }
+                        .onTapGesture { point in
+                            guard let coordinate = proxy.convert(point, from: .local) else { return }
+                            selectedCoordinate = coordinate
+                            selectedName = "Dropped Pin"
+                            searchResults = []
+                            reverseGeocode(coordinate)
+                        }
+
+                        if let targetCoordinate = selectedCoordinate ?? initialCoordinate {
+                            Button {
+                                withAnimation(.easeInOut) {
+                                    position = .camera(MapCamera(
+                                        centerCoordinate: targetCoordinate,
+                                        distance: 3000,
+                                        heading: 0,
+                                        pitch: 0
+                                    ))
+                                }
+                            } label: {
+                                Image(systemName: "location.north.line.fill")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(.primary)
+                                    .padding(10)
+                                    .background(.ultraThinMaterial, in: Circle())
+                                    .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
+                            }
+                            .padding(12)
+                            .accessibilityLabel("Recenter map on location and face north")
+                        }
                     }
                 }
 

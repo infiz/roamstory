@@ -48,6 +48,12 @@ struct TripEditorView: View {
                                         SectionBlockSummary(section: section)
                                     }
                                     Spacer(minLength: 0)
+                                    Text(section.formattedDataSize)
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(.secondary.opacity(0.12), in: Capsule())
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
@@ -106,8 +112,22 @@ struct TripEditorView: View {
             }
         }
         .environment(\.editMode, $sectionListEditMode)
-        .navigationTitle(trip.title)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: 6) {
+                    Text(trip.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text(trip.formattedDataSize)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.secondary.opacity(0.12), in: Capsule())
+                }
+            }
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(sectionListEditMode.isEditing ? "Done" : "Reorder") {
                     withAnimation {
@@ -180,6 +200,7 @@ struct TripEditorView: View {
         ) { section in
             Button("Delete", role: .destructive) {
                 modelContext.delete(section)
+                try? modelContext.save()
                 trip.touch()
                 sectionPendingDeletion = nil
             }
