@@ -140,6 +140,55 @@ final class TripSorterTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(section.endDate!, section.startDate!)
     }
 
+    func testDateRangeSummaryUsesCompactNumericFormat() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let start = calendar.date(from: DateComponents(
+            year: 2026,
+            month: 7,
+            day: 22,
+            hour: 9,
+            minute: 0
+        ))!
+        let end = calendar.date(from: DateComponents(
+            year: 2026,
+            month: 7,
+            day: 24,
+            hour: 18,
+            minute: 0
+        ))!
+
+        XCTAssertEqual(
+            DateRangeFormatting.summary(start: start, end: end),
+            "2026/07/22 09:00 - 2026/07/24 18:00"
+        )
+    }
+
+    func testDatesRemainAbsoluteAndDisplayInRequestedDeviceTimeZone() {
+        let start = ISO8601DateFormatter().date(from: "2026-07-22T16:00:00Z")!
+        let end = ISO8601DateFormatter().date(from: "2026-07-22T18:00:00Z")!
+        let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
+        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+
+        XCTAssertEqual(
+            DateRangeFormatting.summary(
+                start: start,
+                end: end,
+                timeZone: losAngeles
+            ),
+            "2026/07/22 09:00 - 2026/07/22 11:00"
+        )
+        XCTAssertEqual(
+            DateRangeFormatting.summary(
+                start: start,
+                end: end,
+                timeZone: tokyo
+            ),
+            "2026/07/23 01:00 - 2026/07/23 03:00"
+        )
+        XCTAssertEqual(start.timeIntervalSince1970, 1_784_736_000)
+    }
+
     func testTouchingSectionStoresLastEditedTimeAndUpdatesTrip() {
         let originalDate = Date(timeIntervalSince1970: 100)
         let editedDate = Date(timeIntervalSince1970: 500)
@@ -168,7 +217,7 @@ final class TripSorterTests: XCTestCase {
         )
         let context = container.mainContext
         let undoManager = UndoManager()
-        undoManager.groupsByEvent = false
+        undoManager.groupsByEvent = true
         context.undoManager = undoManager
 
         let trip = Trip(title: "Japan")
@@ -176,6 +225,8 @@ final class TripSorterTests: XCTestCase {
         trip.sections.append(section)
         context.insert(trip)
         try context.save()
+        context.processPendingChanges()
+        context.undoManager = undoManager
         undoManager.removeAllActions()
 
         undoManager.beginUndoGrouping()
@@ -190,6 +241,113 @@ final class TripSorterTests: XCTestCase {
 
         undoManager.redo()
         XCTAssertEqual(section.title, "Edited")
+    }
+
+    @MainActor
+    func testBlockAddDeleteAndDescriptionChangesSupportUndoAndRedo() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Trip.self,
+            TripSection.self,
+            ContentBlock.self,
+            MediaReference.self,
+            configurations: configuration
+        )
+        let context = container.mainContext
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = true
+
+        let trip = Trip(title: "Japan")
+        let section = TripSection(title: "Kyoto")
+        trip.sections.append(section)
+        context.insert(trip)
+        try context.save()
+        context.processPendingChanges()
+        context.undoManager = undoManager
+        context.processPendingChanges()
+        undoManager.removeAllActions()
+
+        let block = ContentBlock(type: .photo)
+        undoManager.beginUndoGrouping()
+        context.insert(block)
+        section.blocks.append(block)
+        section.touch()
+        undoManager.endUndoGrouping()
+
+        XCTAssertEqual(section.blocks.count, 1)
+        undoManager.undo()
+        XCTAssertTrue(section.blocks.isEmpty)
+        undoManager.redo()
+        XCTAssertEqual(section.blocks.count, 1)
+
+        undoManager.beginUndoGrouping()
+        block.descriptionText = "Temple at sunset"
+        section.touch()
+        undoManager.endUndoGrouping()
+
+        undoManager.undo()
+        XCTAssertEqual(block.descriptionText, "")
+        undoManager.redo()
+        XCTAssertEqual(block.descriptionText, "Temple at sunset")
+
+        undoManager.beginUndoGrouping()
+        context.delete(block)
+        section.touch()
+        undoManager.endUndoGrouping()
+
+        XCTAssertTrue(section.blocks.isEmpty)
+        undoManager.undo()
+        XCTAssertEqual(section.blocks.count, 1)
+        undoManager.redo()
+        XCTAssertTrue(section.blocks.isEmpty)
+    }
+
+    @MainActor
+    func testRepeatedBlockUndoRedoKeepsSectionAttachedToTrip() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Trip.self,
+            TripSection.self,
+            ContentBlock.self,
+            MediaReference.self,
+            configurations: configuration
+        )
+        let context = container.mainContext
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = true
+
+        let trip = Trip(title: "Japan")
+        let section = TripSection(title: "Kyoto")
+        let block = ContentBlock(type: .photo)
+        section.blocks.append(block)
+        trip.sections.append(section)
+        context.insert(trip)
+        try context.save()
+        context.processPendingChanges()
+        // Match the app: section history is attached only after the section
+        // already exists, so its creation/relationship cannot enter this scope.
+        context.undoManager = undoManager
+        context.processPendingChanges()
+        undoManager.removeAllActions()
+
+        undoManager.beginUndoGrouping()
+        block.descriptionText = "Temple after rain"
+        section.touch()
+        undoManager.endUndoGrouping()
+
+        for _ in 0..<3 {
+            XCTAssertTrue(undoManager.canUndo)
+            undoManager.undo()
+            XCTAssertEqual(trip.sections.map(\.id), [section.id])
+            XCTAssertEqual(section.trip?.id, trip.id)
+            XCTAssertTrue(undoManager.canRedo)
+            undoManager.redo()
+            XCTAssertEqual(trip.sections.map(\.id), [section.id])
+            XCTAssertEqual(section.trip?.id, trip.id)
+        }
+
+        let sectionCount = try context.fetchCount(FetchDescriptor<TripSection>())
+        XCTAssertEqual(sectionCount, 1)
     }
 
     func testCodeBlockStoresSourceText() {

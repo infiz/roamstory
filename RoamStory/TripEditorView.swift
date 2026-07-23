@@ -10,8 +10,7 @@ struct TripEditorView: View {
     @State private var isExportingDocx = false
     @State private var isExportingHTML = false
     @State private var sectionPendingDeletion: TripSection?
-    @State private var sectionToOpen: TripSection?
-    @State private var isOpeningSection = false
+    @State private var sectionListEditMode: EditMode = .inactive
 
     var body: some View {
         List {
@@ -34,8 +33,8 @@ struct TripEditorView: View {
             } else {
                 ForEach(trip.orderedSections) { section in
                     HStack(spacing: 8) {
-                        Button {
-                            openSection(section)
+                        NavigationLink {
+                            SectionLoadingDestination(section: section)
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: section.kind.systemImage)
@@ -44,9 +43,7 @@ struct TripEditorView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(section.title)
                                         .font(.headline)
-                                    Text("\(section.kind.label) · \(section.blocks.count) blocks")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                    SectionBlockSummary(section: section)
                                     if let startDate = section.startDate, let endDate = section.endDate {
                                         Text(DateRangeFormatting.summary(start: startDate, end: endDate))
                                             .font(.caption2)
@@ -63,12 +60,11 @@ struct TripEditorView: View {
                                     .foregroundStyle(.tertiary)
                                 }
                                 Spacer(minLength: 0)
-                                Image(systemName: "chevron.forward")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SectionNavigationButtonStyle())
                         .accessibilityLabel("Open \(section.title)")
                         Menu {
                             Button(role: .destructive) {
@@ -95,49 +91,22 @@ struct TripEditorView: View {
                 .onMove(perform: moveSections)
             }
         }
-        .environment(\.editMode, .constant(.active))
-        .overlay {
-            if isOpeningSection {
-                ZStack {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .ignoresSafeArea()
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .controlSize(.large)
-                        Text("Opening section…")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 20)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-                }
-                .transition(.opacity)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Opening section")
-            }
-        }
+        .environment(\.editMode, $sectionListEditMode)
         .navigationTitle(trip.title)
-        .navigationDestination(
-            isPresented: Binding(
-                get: { sectionToOpen != nil },
-                set: {
-                    if !$0 {
-                        sectionToOpen = nil
-                        isOpeningSection = false
-                    }
-                }
-            )
-        ) {
-            if let sectionToOpen {
-                SectionEditorView(section: sectionToOpen)
-                    .onAppear {
-                        isOpeningSection = false
-                    }
-            }
-        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                Button(sectionListEditMode.isEditing ? "Done" : "Reorder") {
+                    withAnimation {
+                        sectionListEditMode = sectionListEditMode.isEditing
+                            ? .inactive
+                            : .active
+                    }
+                }
+                .accessibilityHint(
+                    sectionListEditMode.isEditing
+                        ? "Finishes reordering sections"
+                        : "Shows controls for reordering sections"
+                )
                 Button {
                     isCreatingSection = true
                 } label: {
@@ -212,15 +181,78 @@ struct TripEditorView: View {
         trip.touch()
     }
 
-    private func openSection(_ section: TripSection) {
-        guard !isOpeningSection else { return }
-        withAnimation(.easeIn(duration: 0.12)) {
-            isOpeningSection = true
+}
+
+private struct SectionNavigationButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.62 : 1)
+            .background(
+                configuration.isPressed ? Color.secondary.opacity(0.1) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+
+private struct SectionLoadingDestination: View {
+    let section: TripSection
+    @State private var isReady = false
+
+    var body: some View {
+        Group {
+            if isReady {
+                SectionEditorView(section: section)
+            } else {
+                VStack(spacing: 14) {
+                    ProgressView()
+                        .controlSize(.large)
+                    Text("Opening section…")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Opening section")
+            }
         }
-        Task { @MainActor in
+        .task {
+            // Let the navigation transition render before constructing a media-heavy editor.
             await Task.yield()
-            sectionToOpen = section
+            isReady = true
         }
+    }
+}
+
+private struct SectionBlockSummary: View {
+    @Environment(\.modelContext) private var modelContext
+    let section: TripSection
+    @State private var blockCount: Int?
+
+    var body: some View {
+        Text(summary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .task(id: section.id) {
+                await loadBlockCount()
+            }
+    }
+
+    private var summary: String {
+        guard let blockCount else { return section.kind.label }
+        return "\(section.kind.label) · \(blockCount) \(blockCount == 1 ? "block" : "blocks")"
+    }
+
+    @MainActor
+    private func loadBlockCount() async {
+        await Task.yield()
+        let sectionID = section.id
+        let descriptor = FetchDescriptor<ContentBlock>(
+            predicate: #Predicate { block in
+                block.section?.id == sectionID
+            }
+        )
+        blockCount = try? modelContext.fetchCount(descriptor)
     }
 }
 
@@ -241,7 +273,7 @@ private struct CreateSectionView: View {
         _startDate = State(initialValue: proposedStart)
         _endDate = State(
             initialValue: trip.endDate
-                ?? Calendar.current.date(byAdding: .hour, value: 1, to: proposedStart)
+                ?? Calendar.autoupdatingCurrent.date(byAdding: .hour, value: 1, to: proposedStart)
                 ?? proposedStart.addingTimeInterval(3_600)
         )
     }
@@ -313,7 +345,7 @@ private struct EditTripView: View {
         _draftStartDate = State(initialValue: start)
         _draftEndDate = State(
             initialValue: trip.endDate
-                ?? Calendar.current.date(byAdding: .hour, value: 1, to: start)
+                ?? Calendar.autoupdatingCurrent.date(byAdding: .hour, value: 1, to: start)
                 ?? start.addingTimeInterval(3_600)
         )
     }
@@ -360,9 +392,11 @@ struct DateHourRangeEditor: View {
     @Binding var startDate: Date
     @Binding var endDate: Date
 
-    static var defaultStart: Date { Calendar.current.dateInterval(of: .hour, for: .now)?.start ?? .now }
+    static var defaultStart: Date {
+        Calendar.autoupdatingCurrent.dateInterval(of: .hour, for: .now)?.start ?? .now
+    }
     static var defaultEnd: Date {
-        Calendar.current.date(byAdding: .hour, value: 1, to: defaultStart)
+        Calendar.autoupdatingCurrent.date(byAdding: .hour, value: 1, to: defaultStart)
             ?? defaultStart.addingTimeInterval(3_600)
     }
 
@@ -402,23 +436,46 @@ private struct DateHourRow: View {
 
     private var hourBinding: Binding<Int> {
         Binding(
-            get: { Calendar.current.component(.hour, from: date) },
+            get: { Calendar.autoupdatingCurrent.component(.hour, from: date) },
             set: { hour in
-                date = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: date) ?? date
+                date = Calendar.autoupdatingCurrent.date(
+                    bySettingHour: hour,
+                    minute: 0,
+                    second: 0,
+                    of: date
+                ) ?? date
             }
         )
     }
 }
 
 enum DateRangeFormatting {
+    private static let deviceDateTimeFormatter: DateFormatter = makeFormatter(
+        timeZone: .autoupdatingCurrent
+    )
+
     static func summary(start: Date, end: Date) -> String {
-        "\(start.formatted(date: .abbreviated, time: .shortened)) – \(end.formatted(date: .abbreviated, time: .shortened))"
+        "\(deviceDateTimeFormatter.string(from: start)) - \(deviceDateTimeFormatter.string(from: end))"
+    }
+
+    static func summary(start: Date, end: Date, timeZone: TimeZone) -> String {
+        let formatter = makeFormatter(timeZone: timeZone)
+        return "\(formatter.string(from: start)) - \(formatter.string(from: end))"
+    }
+
+    private static func makeFormatter(timeZone: TimeZone) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        return formatter
     }
 
     static func hourLabel(_ hour: Int) -> String {
         var components = DateComponents()
         components.hour = hour
-        let date = Calendar.current.date(from: components) ?? .now
+        let date = Calendar.autoupdatingCurrent.date(from: components) ?? .now
         return date.formatted(date: .omitted, time: .shortened)
     }
 }

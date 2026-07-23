@@ -235,6 +235,12 @@ final class TripSection {
     }
 
     func touch(at date: Date = .now) {
+        // Modification timestamps are bookkeeping rather than editable content.
+        // Mutating this child while a SwiftData undo scope is active can capture
+        // its inverse relationship and detach it from the trip. The editor calls
+        // touch again after detaching its scoped manager, before returning to the
+        // section list.
+        guard modelContext?.undoManager == nil else { return }
         modifiedAt = date
         trip?.touch(at: date)
     }
@@ -364,8 +370,10 @@ enum BlockOrdering {
 }
 
 extension Date {
+    /// `Date` is persisted as an absolute instant. The device calendar is used
+    /// only to interpret the user's local hour before SwiftData stores that instant.
     var alignedToHour: Date {
-        Calendar.current.dateInterval(of: .hour, for: self)?.start ?? self
+        Calendar.autoupdatingCurrent.dateInterval(of: .hour, for: self)?.start ?? self
     }
 }
 

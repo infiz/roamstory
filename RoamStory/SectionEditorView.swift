@@ -1,7 +1,13 @@
+import Combine
 import MapKit
 import SwiftData
 import SwiftUI
 import UIKit
+
+private struct BlockUndoFocusTarget {
+    let blockID: UUID
+    let originalIndex: Int
+}
 
 struct SectionEditorView: View {
     @Environment(\.modelContext) private var modelContext
@@ -19,7 +25,14 @@ struct SectionEditorView: View {
     @State private var isExportingHTML = false
     @State private var editMode: EditMode = .inactive
     @State private var sectionUndoManager = UndoManager()
+    @State private var hasInitializedUndoScope = false
     @State private var undoStateVersion = 0
+    @State private var pendingUndoFocusTarget: BlockUndoFocusTarget?
+    @State private var undoFocusTargets: [BlockUndoFocusTarget?] = []
+    @State private var redoFocusTargets: [BlockUndoFocusTarget?] = []
+    @State private var isPerformingHistoryAction = false
+    @State private var scrollTargetBlockID: UUID?
+    @State private var highlightedBlockID: UUID?
 
     var body: some View {
         List {
@@ -48,6 +61,7 @@ struct SectionEditorView: View {
                                 onChangeLocation: { isChangingMapLocation = true },
                                 onEditPhotoLink: { photoLinkBeingEdited = block },
                                 onRemovePhotoLink: {
+                                    markBlockChanged(block.id)
                                     block.linkURLString = ""
                                     section.touch()
                                 },
@@ -61,6 +75,7 @@ struct SectionEditorView: View {
                                 block: block,
                                 undoManager: sectionUndoManager
                             ) {
+                                markBlockChanged(block.id)
                                 section.touch()
                             }
                         }
@@ -73,6 +88,7 @@ struct SectionEditorView: View {
                         }
                     }
                     .frame(maxWidth: .infinity)
+                    .id(block.id)
                     .swipeActions {
                         Button(role: .destructive) {
                             blockPendingDeletion = block
@@ -82,23 +98,57 @@ struct SectionEditorView: View {
                     }
                     .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10))
                     .listRowBackground(Color.clear)
+                    .overlay {
+                        if highlightedBlockID == block.id {
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.accentColor, lineWidth: 3)
+                                .padding(.horizontal, 7)
+                        }
+                    }
                 }
                 .onMove(perform: moveBlocks)
                 blockInsertionDivider(at: section.orderedBlocks.count)
             }
         }
         .environment(\.editMode, $editMode)
+        .scrollPosition(id: $scrollTargetBlockID, anchor: .center)
         .scrollDismissesKeyboard(.interactively)
         .onAppear {
             sectionUndoManager.groupsByEvent = true
             sectionUndoManager.levelsOfUndo = 100
+            // Flush navigation/list mutations before installing the scoped manager.
+            // Otherwise SwiftData can register a pending section insertion or
+            // relationship change as the first "section edit" undo operation.
+            modelContext.processPendingChanges()
             modelContext.undoManager = sectionUndoManager
+            modelContext.processPendingChanges()
+            if !hasInitializedUndoScope {
+                sectionUndoManager.removeAllActions()
+                hasInitializedUndoScope = true
+            }
             refreshUndoAvailability()
         }
         .onDisappear {
+            // The model context is shared by the navigation stack. Do not let this
+            // section's history capture trip-list or other section operations.
             if modelContext.undoManager === sectionUndoManager {
                 modelContext.undoManager = nil
+                section.touch()
             }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .NSUndoManagerDidCloseUndoGroup)
+        ) { notification in
+            guard notification.object as? UndoManager === sectionUndoManager else { return }
+            if !isPerformingHistoryAction,
+               !sectionUndoManager.isUndoing,
+               !sectionUndoManager.isRedoing,
+               sectionUndoManager.canUndo {
+                undoFocusTargets.append(pendingUndoFocusTarget)
+                redoFocusTargets.removeAll()
+                self.pendingUndoFocusTarget = nil
+            }
+            refreshUndoAvailability()
         }
         .contentMargins(.top, 2, for: .scrollContent)
         .navigationTitle("")
@@ -159,7 +209,7 @@ struct SectionEditorView: View {
                 .accessibilityLabel("Section actions")
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button(editMode.isEditing ? "Done" : "Edit") {
+                Button(editMode.isEditing ? "Done" : "Reorder") {
                     withAnimation {
                         editMode = editMode.isEditing ? .inactive : .active
                     }
@@ -214,6 +264,7 @@ struct SectionEditorView: View {
         }
         .sheet(item: $galleryBeingEdited) { block in
             GalleryEditorView(block: block) {
+                markBlockChanged(block.id)
                 section.touch()
             }
         }
@@ -222,6 +273,9 @@ struct SectionEditorView: View {
                 initialName: section.placeName,
                 initialCoordinate: sectionCoordinate
             ) { name, coordinate in
+                if let mapBlock = section.orderedBlocks.first(where: { $0.type == .map }) {
+                    markBlockChanged(mapBlock.id)
+                }
                 section.placeName = name
                 section.latitude = coordinate.latitude
                 section.longitude = coordinate.longitude
@@ -230,6 +284,7 @@ struct SectionEditorView: View {
         }
         .sheet(item: $photoLinkBeingEdited) { block in
             PhotoBlockLinkEditor(block: block) {
+                markBlockChanged(block.id)
                 section.touch()
             }
             .presentationDetents([.medium])
@@ -257,6 +312,7 @@ struct SectionEditorView: View {
         ) {
             Button("Delete", role: .destructive) {
                 if let blockPendingDeletion {
+                    markBlockChanged(blockPendingDeletion.id)
                     modelContext.delete(blockPendingDeletion)
                     normalizeBlockOrder()
                     section.touch()
@@ -290,18 +346,70 @@ struct SectionEditorView: View {
 
     private func undo() {
         dismissKeyboard()
+        guard sectionUndoManager.canUndo else { return }
+        let focusTarget: BlockUndoFocusTarget? = undoFocusTargets.isEmpty
+            ? nil
+            : undoFocusTargets.removeLast()
+        isPerformingHistoryAction = true
         sectionUndoManager.undo()
+        isPerformingHistoryAction = false
+        redoFocusTargets.append(focusTarget)
+        if let focusTarget {
+            reveal(focusTarget)
+        }
         refreshUndoAvailability()
     }
 
     private func redo() {
         dismissKeyboard()
+        guard sectionUndoManager.canRedo else { return }
+        let focusTarget: BlockUndoFocusTarget? = redoFocusTargets.isEmpty
+            ? nil
+            : redoFocusTargets.removeLast()
+        isPerformingHistoryAction = true
         sectionUndoManager.redo()
+        isPerformingHistoryAction = false
+        undoFocusTargets.append(focusTarget)
+        if let focusTarget {
+            reveal(focusTarget)
+        }
         refreshUndoAvailability()
     }
 
     private func refreshUndoAvailability() {
         undoStateVersion &+= 1
+    }
+
+    private func markBlockChanged(_ blockID: UUID) {
+        let index = section.orderedBlocks.firstIndex { $0.id == blockID }
+            ?? section.orderedBlocks.count
+        pendingUndoFocusTarget = BlockUndoFocusTarget(
+            blockID: blockID,
+            originalIndex: index
+        )
+    }
+
+    private func reveal(_ target: BlockUndoFocusTarget) {
+        Task { @MainActor in
+            await Task.yield()
+            let blocks = section.orderedBlocks
+            let fallbackID = blocks.isEmpty
+                ? nil
+                : blocks[min(target.originalIndex, blocks.count - 1)].id
+            let resolvedID = blocks.first(where: { $0.id == target.blockID })?.id
+                ?? fallbackID
+            guard let resolvedID else { return }
+            scrollTargetBlockID = nil
+            await Task.yield()
+            withAnimation(.easeInOut(duration: 0.25)) {
+                scrollTargetBlockID = resolvedID
+            }
+            highlightedBlockID = resolvedID
+            try? await Task.sleep(for: .seconds(1.2))
+            if highlightedBlockID == resolvedID {
+                highlightedBlockID = nil
+            }
+        }
     }
 
     private func blockInsertionDivider(at index: Int) -> some View {
@@ -404,6 +512,7 @@ struct SectionEditorView: View {
         defer { photoBeingChanged = nil }
         guard let block = photoBeingChanged,
               let selection = selections.first(where: { $0.kind == .image }) else { return }
+        markBlockChanged(block.id)
 
         for reference in block.mediaReferences {
             modelContext.delete(reference)
@@ -420,6 +529,9 @@ struct SectionEditorView: View {
 
     private func moveBlocks(from source: IndexSet, to destination: Int) {
         var ordered = section.orderedBlocks
+        if let sourceIndex = source.first, ordered.indices.contains(sourceIndex) {
+            markBlockChanged(ordered[sourceIndex].id)
+        }
         ordered.move(fromOffsets: source, toOffset: destination)
         for (index, block) in ordered.enumerated() {
             block.sortIndex = index
@@ -428,6 +540,7 @@ struct SectionEditorView: View {
     }
 
     private func moveBlock(_ blockID: UUID, by offset: Int) {
+        markBlockChanged(blockID)
         var ordered = section.orderedBlocks
         guard let sourceIndex = ordered.firstIndex(where: { $0.id == blockID }) else { return }
         let destination = sourceIndex + offset
@@ -453,6 +566,7 @@ struct SectionEditorView: View {
         for (newIndex, orderedBlock) in ordered.enumerated() {
             orderedBlock.sortIndex = newIndex
         }
+        markBlockChanged(block.id)
         selectedInsertionIndex = index + 1
         section.touch()
     }
@@ -686,7 +800,7 @@ private struct ParagraphBlockView: View {
         .fullScreenCover(isPresented: $isEditingFullScreen) {
             FullScreenParagraphEditor(
                 block: block,
-                undoManager: undoManager,
+                sectionUndoManager: undoManager,
                 onChange: onChange
             )
         }
@@ -708,31 +822,100 @@ private struct FullScreenParagraphEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var block: ContentBlock
-    let undoManager: UndoManager
+    let sectionUndoManager: UndoManager
     let onChange: () -> Void
+    @State private var isClosing = false
+    @State private var paragraphUndoManager = UndoManager()
+    @State private var undoStateVersion = 0
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                RichParagraphView(block: block, onChange: onChange)
+            GeometryReader { geometry in
+                ScrollView {
+                    RichParagraphView(
+                        block: block,
+                        onChange: onChange,
+                        minimumEditorHeight: max(geometry.size.height - 170, 300)
+                    )
                     .padding()
+                }
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(block.title.isEmpty ? "Edit Paragraph" : block.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
+                        guard !isClosing else { return }
+                        isClosing = true
                         dismissKeyboard()
-                        dismiss()
+                        Task { @MainActor in
+                            await Task.yield()
+                            dismiss()
+                        }
                     }
                     .fontWeight(.semibold)
+                    .disabled(isClosing)
+                }
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Button {
+                        undo()
+                    } label: {
+                        Label("Undo", systemImage: "arrow.uturn.backward")
+                    }
+                    .disabled(!canUndo || isClosing)
+                    .keyboardShortcut("z", modifiers: .command)
+
+                    Button {
+                        redo()
+                    } label: {
+                        Label("Redo", systemImage: "arrow.uturn.forward")
+                    }
+                    .disabled(!canRedo || isClosing)
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+
+                    Spacer()
                 }
             }
         }
         .onAppear {
-            modelContext.undoManager = undoManager
+            paragraphUndoManager.groupsByEvent = true
+            paragraphUndoManager.levelsOfUndo = 100
+            paragraphUndoManager.removeAllActions()
+            modelContext.undoManager = paragraphUndoManager
+            refreshUndoAvailability()
         }
+        .onDisappear {
+            if modelContext.undoManager === paragraphUndoManager {
+                modelContext.undoManager = sectionUndoManager
+            }
+        }
+    }
+
+    private var canUndo: Bool {
+        _ = undoStateVersion
+        return paragraphUndoManager.canUndo
+    }
+
+    private var canRedo: Bool {
+        _ = undoStateVersion
+        return paragraphUndoManager.canRedo
+    }
+
+    private func undo() {
+        dismissKeyboard()
+        paragraphUndoManager.undo()
+        refreshUndoAvailability()
+    }
+
+    private func redo() {
+        dismissKeyboard()
+        paragraphUndoManager.redo()
+        refreshUndoAvailability()
+    }
+
+    private func refreshUndoAvailability() {
+        undoStateVersion &+= 1
     }
 
     private func dismissKeyboard() {
@@ -746,11 +929,22 @@ private struct FullScreenParagraphEditor: View {
 }
 
 private struct CodeBlockView: View {
+    @Environment(\.modelContext) private var modelContext
     @Bindable var block: ContentBlock
     let onChange: () -> Void
+    @State private var draftText: String
+    @State private var pendingCommitTask: Task<Void, Never>?
+    @FocusState private var isFocused: Bool
+
+    init(block: ContentBlock, onChange: @escaping () -> Void) {
+        self.block = block
+        self.onChange = onChange
+        _draftText = State(initialValue: block.text)
+    }
 
     var body: some View {
-        TextEditor(text: $block.text)
+        TextEditor(text: $draftText)
+            .focused($isFocused)
             .font(.system(.body, design: .monospaced))
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -762,14 +956,48 @@ private struct CodeBlockView: View {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(.secondary.opacity(0.18), lineWidth: 1)
             }
-            .onChange(of: block.text) { _, _ in onChange() }
+            .onChange(of: draftText) { _, newValue in
+                scheduleCommit(commitAtWordBoundary: newValue.last?.isWhitespace == true)
+            }
+            .onChange(of: isFocused) { _, focused in
+                if !focused { commitPendingText() }
+            }
+            .onChange(of: block.text) { _, newValue in
+                if !isFocused { draftText = newValue }
+            }
+            .onDisappear { commitPendingText() }
             .accessibilityLabel("Code editor")
+    }
+
+    private func scheduleCommit(commitAtWordBoundary: Bool) {
+        pendingCommitTask?.cancel()
+        if commitAtWordBoundary {
+            commitPendingText()
+            return
+        }
+        pendingCommitTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled else { return }
+            commitPendingText()
+        }
+    }
+
+    private func commitPendingText() {
+        pendingCommitTask?.cancel()
+        pendingCommitTask = nil
+        guard block.text != draftText else { return }
+        modelContext.undoManager?.beginUndoGrouping()
+        block.text = draftText
+        onChange()
+        modelContext.undoManager?.endUndoGrouping()
+        modelContext.undoManager?.setActionName("Edit Code")
     }
 }
 
 private struct RichParagraphView: View {
     @Bindable var block: ContentBlock
     let onChange: () -> Void
+    var minimumEditorHeight: CGFloat? = nil
     @StateObject private var formattingController = RichTextFormattingController()
     @State private var isEditingLink = false
     @State private var linkAddress = ""
@@ -780,10 +1008,14 @@ private struct RichParagraphView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if block.type == .paragraph || block.type == .quote {
-                TextField("Paragraph title (optional)", text: $block.title)
+                BatchedTextField(
+                    "Paragraph title (optional)",
+                    text: $block.title,
+                    actionName: "Edit Title",
+                    onChange: onChange
+                )
                     .font(.headline)
                     .textInputAutocapitalization(.sentences)
-                    .onChange(of: block.title) { _, _ in onChange() }
                     .accessibilityLabel("Paragraph title")
             }
 
@@ -851,7 +1083,10 @@ private struct RichParagraphView: View {
                 controller: formattingController,
                 onChange: onChange
             )
-                .frame(minHeight: block.type == .heading ? 54 : 100)
+                .frame(
+                    minHeight: minimumEditorHeight
+                        ?? (block.type == .heading ? 54 : 100)
+                )
         }
         .padding(.vertical, 8)
         .sheet(isPresented: $isEditingLink) {
@@ -965,13 +1200,13 @@ private struct MediaBlockView: View {
                 MissingMediaView()
             }
 
-            TextField(
-                block.type == .video ? "Describe this video" : "Describe this photo",
+            BlockDescriptionField(
+                prompt: block.type == .video
+                    ? "Describe this video"
+                    : "Describe this photo",
                 text: $block.descriptionText,
-                axis: .vertical
+                onChange: onChange
             )
-            .font(.subheadline)
-            .onChange(of: block.descriptionText) { _, _ in onChange() }
         }
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1076,9 +1311,11 @@ private struct GalleryBlockView: View {
             .frame(height: 240)
             .tabViewStyle(.page(indexDisplayMode: .always))
 
-            TextField("Describe this gallery", text: $block.descriptionText, axis: .vertical)
-                .font(.subheadline)
-                .onChange(of: block.descriptionText) { _, _ in onChange() }
+            BlockDescriptionField(
+                prompt: "Describe this gallery",
+                text: $block.descriptionText,
+                onChange: onChange
+            )
 
         }
         .padding(.vertical, 8)
@@ -1331,9 +1568,11 @@ private struct MapBlockView: View {
                 .frame(height: 180)
             }
 
-            TextField("Describe this location", text: $block.descriptionText, axis: .vertical)
-                .font(.subheadline)
-                .onChange(of: block.descriptionText) { _, _ in onChange() }
+            BlockDescriptionField(
+                prompt: "Describe this location",
+                text: $block.descriptionText,
+                onChange: onChange
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
@@ -1348,6 +1587,99 @@ private struct MissingMediaView: View {
             description: Text("The Photos reference is missing or access is unavailable.")
         )
         .frame(height: 200)
+    }
+}
+
+private struct BlockDescriptionField: View {
+    var body: some View {
+        BatchedTextField(
+            prompt,
+            text: $text,
+            axis: .vertical,
+            actionName: "Edit Description",
+            onChange: onChange
+        )
+            .font(.subheadline)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .accessibilityHint("Tap anywhere in this row to edit the description")
+    }
+
+    let prompt: String
+    @Binding var text: String
+    let onChange: () -> Void
+}
+
+private struct BatchedTextField: View {
+    @Environment(\.modelContext) private var modelContext
+    let prompt: String
+    @Binding var text: String
+    let axis: Axis
+    let actionName: String
+    let onChange: () -> Void
+    @State private var draftText: String
+    @State private var pendingCommitTask: Task<Void, Never>?
+    @FocusState private var isFocused: Bool
+
+    init(
+        _ prompt: String,
+        text: Binding<String>,
+        axis: Axis = .horizontal,
+        actionName: String,
+        onChange: @escaping () -> Void
+    ) {
+        self.prompt = prompt
+        _text = text
+        self.axis = axis
+        self.actionName = actionName
+        self.onChange = onChange
+        _draftText = State(initialValue: text.wrappedValue)
+    }
+
+    var body: some View {
+        TextField(prompt, text: $draftText, axis: axis)
+            .focused($isFocused)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    isFocused = true
+                }
+            )
+            .onChange(of: draftText) { _, newValue in
+                scheduleCommit(commitAtWordBoundary: newValue.last?.isWhitespace == true)
+            }
+            .onChange(of: isFocused) { _, focused in
+                if !focused { commitPendingText() }
+            }
+            .onChange(of: text) { _, newValue in
+                if !isFocused { draftText = newValue }
+            }
+            .onSubmit { commitPendingText() }
+            .onDisappear { commitPendingText() }
+    }
+
+    private func scheduleCommit(commitAtWordBoundary: Bool) {
+        pendingCommitTask?.cancel()
+        if commitAtWordBoundary {
+            commitPendingText()
+            return
+        }
+        pendingCommitTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled else { return }
+            commitPendingText()
+        }
+    }
+
+    private func commitPendingText() {
+        pendingCommitTask?.cancel()
+        pendingCommitTask = nil
+        guard text != draftText else { return }
+        modelContext.undoManager?.beginUndoGrouping()
+        text = draftText
+        onChange()
+        modelContext.undoManager?.endUndoGrouping()
+        modelContext.undoManager?.setActionName(actionName)
     }
 }
 
@@ -1375,7 +1707,7 @@ private struct EditSectionView: View {
         _draftStartDate = State(initialValue: start)
         _draftEndDate = State(
             initialValue: section.endDate
-                ?? Calendar.current.date(byAdding: .hour, value: 1, to: start)
+                ?? Calendar.autoupdatingCurrent.date(byAdding: .hour, value: 1, to: start)
                 ?? start.addingTimeInterval(3_600)
         )
         if let latitude = section.latitude, let longitude = section.longitude {

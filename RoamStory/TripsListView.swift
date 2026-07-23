@@ -3,10 +3,12 @@ import SwiftUI
 
 struct TripsListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var trips: [Trip]
 
     @AppStorage("tripSortField") private var sortFieldRawValue = TripSortField.modified.rawValue
     @AppStorage("tripSortDirection") private var sortDirectionRawValue = SortDirection.descending.rawValue
+    @State private var trips: [Trip] = []
+    @State private var isLoadingTrips = true
+    @State private var loadErrorMessage: String?
     @State private var isCreatingTrip = false
     @State private var tripPendingDeletion: Trip?
 
@@ -25,7 +27,30 @@ struct TripsListView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if sortedTrips.isEmpty {
+                if isLoadingTrips {
+                    VStack(spacing: 14) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text("Loading trips…")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Preparing your travel stories")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Loading trips")
+                } else if let loadErrorMessage {
+                    ContentUnavailableView {
+                        Label("Trips Unavailable", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text(loadErrorMessage)
+                    } actions: {
+                        Button("Try Again") {
+                            Task { await loadTrips(showProgress: true) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                } else if sortedTrips.isEmpty {
                     ContentUnavailableView {
                         Label("No Trips", systemImage: "map")
                     } description: {
@@ -70,7 +95,9 @@ struct TripsListView: View {
                     }
                 }
             }
-            .sheet(isPresented: $isCreatingTrip) {
+            .sheet(isPresented: $isCreatingTrip, onDismiss: {
+                Task { await loadTrips(showProgress: trips.isEmpty) }
+            }) {
                 CreateTripView()
             }
             .alert(
@@ -83,6 +110,7 @@ struct TripsListView: View {
             ) { trip in
                 Button("Delete", role: .destructive) {
                     modelContext.delete(trip)
+                    trips.removeAll { $0.id == trip.id }
                     tripPendingDeletion = nil
                 }
                 Button("Cancel", role: .cancel) {
@@ -92,6 +120,26 @@ struct TripsListView: View {
                 Text("“\(trip.title)” and all of its sections will be removed from this device.")
             }
         }
+        .task {
+            await loadTrips(showProgress: true)
+        }
+    }
+
+    @MainActor
+    private func loadTrips(showProgress: Bool) async {
+        if showProgress {
+            isLoadingTrips = true
+        }
+        loadErrorMessage = nil
+        await Task.yield()
+
+        do {
+            trips = try modelContext.fetch(FetchDescriptor<Trip>())
+        } catch {
+            trips = []
+            loadErrorMessage = error.localizedDescription
+        }
+        isLoadingTrips = false
     }
 
     private var sortMenu: some View {
@@ -131,7 +179,9 @@ struct TripsListView: View {
 }
 
 private struct TripRowView: View {
+    @Environment(\.modelContext) private var modelContext
     let trip: Trip
+    @State private var sectionCount: Int?
 
     var body: some View {
         HStack(spacing: 14) {
@@ -163,12 +213,38 @@ private struct TripRowView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 }
-                Text("\(trip.sections.count) sections · Edited \(trip.modifiedAt.formatted(date: .abbreviated, time: .omitted))")
+                Text(tripSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
+        .task(id: trip.id) {
+            await loadSectionCount()
+        }
+    }
+
+    private var tripSummary: String {
+        let edited = "Edited \(trip.modifiedAt.formatted(date: .abbreviated, time: .omitted))"
+        guard let sectionCount else { return edited }
+        return "\(sectionCount) \(sectionCount == 1 ? "section" : "sections") · \(edited)"
+    }
+
+    @MainActor
+    private func loadSectionCount() async {
+        await Task.yield()
+        let tripID = trip.id
+        let descriptor = FetchDescriptor<TripSection>(
+            predicate: #Predicate { section in
+                section.trip?.id == tripID
+            }
+        )
+        do {
+            // fetchCount avoids materializing section blocks and media relationships.
+            sectionCount = try modelContext.fetchCount(descriptor)
+        } catch {
+            sectionCount = nil
+        }
     }
 }
 
