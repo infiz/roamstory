@@ -2,9 +2,19 @@ import AVKit
 import Photos
 import SwiftUI
 
+private enum PhotoThumbnailCache {
+    static let images: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 100
+        cache.totalCostLimit = 64 * 1024 * 1024
+        return cache
+    }()
+}
+
 struct PhotoAssetView: View {
     let reference: MediaReference
     var showVideoBadge = false
+    var fitEntireImage = false
 
     @State private var image: UIImage?
     @State private var isMissing = false
@@ -12,10 +22,17 @@ struct PhotoAssetView: View {
     var body: some View {
         ZStack {
             if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .clipped()
+                if fitEntireImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .clipped()
+                }
             } else if isMissing {
                 ContentUnavailableView(
                     "Media Unavailable",
@@ -33,7 +50,9 @@ struct PhotoAssetView: View {
                     .shadow(radius: 4)
             }
         }
-        .background(Color.secondary.opacity(0.08))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .background(fitEntireImage ? Color.white : Color.secondary.opacity(0.08))
         .task(id: reference.localIdentifier) {
             await loadImage()
         }
@@ -41,6 +60,13 @@ struct PhotoAssetView: View {
 
     @MainActor
     private func loadImage() async {
+        let cacheKey = reference.localIdentifier as NSString
+        if let cachedImage = PhotoThumbnailCache.images.object(forKey: cacheKey) {
+            image = cachedImage
+            isMissing = false
+            return
+        }
+
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         guard status == .authorized || status == .limited else {
             isMissing = true
@@ -76,6 +102,10 @@ struct PhotoAssetView: View {
                 }
             }
         }
+        if let image {
+            let cost = Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+            PhotoThumbnailCache.images.setObject(image, forKey: cacheKey, cost: cost)
+        }
         isMissing = image == nil
     }
 }
@@ -85,6 +115,7 @@ struct VideoAssetView: View {
 
     @State private var player: AVPlayer?
     @State private var isMissing = false
+    @State private var isLoadingVideo = false
 
     var body: some View {
         ZStack {
@@ -98,15 +129,29 @@ struct VideoAssetView: View {
                     description: Text("Allow Photos access or relink this video.")
                 )
                 .foregroundStyle(.white)
-            } else {
-                ProgressView("Loading video…")
+            } else if isLoadingVideo {
+                ProgressView("Preparing video…")
                     .tint(.white)
                     .foregroundStyle(.white)
+            } else {
+                Button {
+                    Task {
+                        await loadVideoAndPlay()
+                    }
+                } label: {
+                    PhotoAssetView(reference: reference, showVideoBadge: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Play video")
+                .accessibilityHint("Loads the video from Photos and starts playback")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: reference.localIdentifier) {
-            await loadVideo()
+        .onChange(of: reference.localIdentifier) {
+            player?.pause()
+            player = nil
+            isMissing = false
+            isLoadingVideo = false
         }
         .onDisappear {
             player?.pause()
@@ -114,10 +159,13 @@ struct VideoAssetView: View {
     }
 
     @MainActor
-    private func loadVideo() async {
+    private func loadVideoAndPlay() async {
+        guard !isLoadingVideo else { return }
         player?.pause()
         player = nil
         isMissing = false
+        isLoadingVideo = true
+        defer { isLoadingVideo = false }
 
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         guard status == .authorized || status == .limited else {
@@ -151,6 +199,8 @@ struct VideoAssetView: View {
             isMissing = true
             return
         }
-        player = AVPlayer(playerItem: AVPlayerItem(asset: avAsset))
+        let preparedPlayer = AVPlayer(playerItem: AVPlayerItem(asset: avAsset))
+        player = preparedPlayer
+        preparedPlayer.play()
     }
 }

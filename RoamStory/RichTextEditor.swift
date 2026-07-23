@@ -13,10 +13,20 @@ final class RichTextFormattingController: ObservableObject {
 
     weak var textView: UITextView?
     var onChange: (() -> Void)?
+    private var pendingSelectionRefresh: Task<Void, Never>?
 
     func attach(_ textView: UITextView) {
         self.textView = textView
-        refreshSelectionState()
+        scheduleSelectionStateRefresh()
+    }
+
+    func scheduleSelectionStateRefresh() {
+        pendingSelectionRefresh?.cancel()
+        pendingSelectionRefresh = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            self?.refreshSelectionState()
+        }
     }
 
     func applyFontFamily(_ family: String) {
@@ -240,7 +250,7 @@ struct RichTextEditor: UIViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
-            controller.refreshSelectionState()
+            controller.scheduleSelectionStateRefresh()
         }
 
         private static func archive(_ attributedText: NSAttributedString) -> Data? {

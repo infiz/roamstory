@@ -162,7 +162,7 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | FR-029 | P0 | A section directly owns its ordered content blocks; V1 does not support nested block containers. |
 | FR-029A | P0 | Every paragraph block supports an optional user-defined title displayed immediately above its body. |
 | FR-029B | P0 | The editor visually distinguishes adjacent blocks with a compact, unobtrusive boundary marker and identifies each block's type without relying on color alone. The marker must not create the appearance of a large content gap. |
-| FR-029C | P0 | Every block uses a consistent top-right control layout: an ellipsis menu for block actions followed by a three-bar drag handle on the far right. |
+| FR-029C | P0 | Every block uses a consistent top-right control layout: an ellipsis menu for block actions followed by a three-bar drag handle on the far right. Block drags use a private RoamStory payload accepted only by divider insertion points, never by paragraph titles, descriptions, or other text fields. The active divider expands into a tinted “Drop block here” target and provides selection feedback. The actions menu also provides Move Up and Move Down alternatives. |
 | FR-029D | P0 | Every block's ellipsis menu provides a type-specific Delete action. Activating it presents a confirmation prompt before removal. |
 | FR-029D1 | P0 | Ellipsis action controls use a dedicated minimum 44-point-wide tap target and borderless list-row interaction so a single tap reliably opens the menu without competing with the adjacent drag handle. |
 | FR-029E | P0 | After creating a gallery, the user can add photos, remove individual photos with confirmation, and drag photos into a new display order. Removing a gallery item does not delete the original from the Photos library. |
@@ -193,7 +193,7 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | FR-041A | P0 | A photo block's ellipsis menu includes Change Photo. Replacing the Photos reference preserves the block and caption and never deletes either original from the Photos library. |
 | FR-041B | P0 | A photo block's ellipsis menu supports adding and editing a validated web link and, when linked, exposes a direct Remove Photo Link action. A linked photo displays a link indicator and opens the destination when tapped. |
 | FR-042 | P0 | A gallery supports ordered photos, an optional description for each photo, an overall caption, aspect-ratio preference, and a semantic layout style. |
-| FR-043 | P0 | V1 gallery styles are grid and slideshow/carousel; exporters may map them to format-appropriate layouts. |
+| FR-043 | P0 | V1 gallery styles are grid and slideshow/carousel; exporters may map them to format-appropriate layouts. Gallery photos use aspect-fit rather than cropping, keeping the entire image visible and filling unmatched space with white letterboxing. |
 | FR-044 | P0 | For iPhone Photos assets, the app stores the Photos local identifier and required presentation metadata without copying the original photo into RoamStory storage. Regenerable thumbnails may be cached. |
 | FR-045 | P0 | When available and authorized, preserve capture date, coordinates, camera metadata, orientation, dimensions, filename, and MIME/UTType. |
 | FR-046 | P0 | The user may remove or edit location metadata in the trip without modifying the source in Photos. |
@@ -229,6 +229,11 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | ID | Priority | Requirement |
 |---|---:|---|
 | FR-070 | P0 | The user can export a whole trip as PDF, DOCX, a zipped HTML bundle, or a portable RoamStory archive. |
+| FR-070A | P0 | DOCX export is available for the current section, the entire trip, or a user-selected subset of a trip's sections. Selected sections preserve their trip order. |
+| FR-070B | P0 | DOCX output is a valid WordprocessingML package containing section and block structure, text, captions, Photos-backed image/gallery content when available, video poster frames, photo links, and map location details. |
+| FR-070C | P0 | Export generation reports progress, prevents exporting an empty selection, handles unavailable media with a placeholder, and presents the standard iOS share sheet after a valid DOCX is generated. |
+| FR-070D | P0 | Offline HTML export is available for the current section, the whole trip, or selected trip sections. It produces a ZIP whose root contains `index.html` and an `assets/` directory. |
+| FR-070E | P0 | The HTML ZIP includes local CSS, Photos-backed images and galleries, playable video files with poster frames, static map snapshots and coordinates, captions, links, and accessible text fallbacks. It must not require RoamStory or a network connection after extraction, except when an author-added external link is opened. |
 | FR-071 | P0 | Export offers at least theme, page size (where applicable), image-quality preset, and inclusion of location metadata. |
 | FR-072 | P0 | Export runs from an immutable document snapshot so editing can continue safely. |
 | FR-073 | P0 | The app reports progress and supports cancellation without leaving a partial file at the chosen destination. |

@@ -18,6 +18,8 @@
 		100000000000000000000109 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000D /* XCTest.framework */; };
 		10000000000000000000010B /* RichTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000E /* RichTextEditor.swift */; };
 		10000000000000000000010C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000F /* Assets.xcassets */; };
+		10000000000000000000010D /* DocxExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000010 /* DocxExporter.swift */; };
+		10000000000000000000010E /* HtmlExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* HtmlExporter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,6 +47,8 @@
 		10000000000000000000000D /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
 		10000000000000000000000E /* RichTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichTextEditor.swift; sourceTree = "<group>"; };
 		10000000000000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		100000000000000000000010 /* DocxExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxExporter.swift; sourceTree = "<group>"; };
+		100000000000000000000011 /* HtmlExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HtmlExporter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,6 +92,8 @@
 				100000000000000000000007 /* PhotoAssetView.swift */,
 				10000000000000000000000E /* RichTextEditor.swift */,
 				10000000000000000000000F /* Assets.xcassets */,
+				100000000000000000000010 /* DocxExporter.swift */,
+				100000000000000000000011 /* HtmlExporter.swift */,
 				100000000000000000000009 /* Info.plist */,
 			);
 			path = RoamStory;
@@ -225,6 +231,8 @@
 				100000000000000000000106 /* MediaPicker.swift in Sources */,
 				100000000000000000000107 /* PhotoAssetView.swift in Sources */,
 				10000000000000000000010B /* RichTextEditor.swift in Sources */,
+				10000000000000000000010D /* DocxExporter.swift in Sources */,
+				10000000000000000000010E /* HtmlExporter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
