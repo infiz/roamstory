@@ -7,7 +7,10 @@ struct TripEditorView: View {
 
     @State private var isEditingTrip = false
     @State private var isCreatingSection = false
+    @State private var isExportingDocx = false
+    @State private var isExportingHTML = false
     @State private var sectionPendingDeletion: TripSection?
+    @State private var sectionToOpen: TripSection?
 
     var body: some View {
         List {
@@ -30,8 +33,8 @@ struct TripEditorView: View {
             } else {
                 ForEach(trip.orderedSections) { section in
                     HStack(spacing: 8) {
-                        NavigationLink {
-                            SectionEditorView(section: section)
+                        Button {
+                            sectionToOpen = section
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: section.kind.systemImage)
@@ -49,8 +52,14 @@ struct TripEditorView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                 }
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.forward")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
                             }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open \(section.title)")
                         Menu {
                             Button(role: .destructive) {
                                 sectionPendingDeletion = section
@@ -64,18 +73,6 @@ struct TripEditorView: View {
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("\(section.title) section actions")
-                        Image(systemName: "line.3.horizontal")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 36, height: 32)
-                            .contentShape(Rectangle())
-                            .draggable(section.id.uuidString)
-                            .accessibilityLabel("Move \(section.title) section")
-                            .accessibilityHint("Drag to another section to reorder")
-                    }
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let sourceValue = items.first,
-                              let sourceID = UUID(uuidString: sourceValue) else { return false }
-                        return moveSection(sourceID: sourceID, before: section.id)
                     }
                     .swipeActions {
                         Button(role: .destructive) {
@@ -85,9 +82,21 @@ struct TripEditorView: View {
                         }
                     }
                 }
+                .onMove(perform: moveSections)
             }
         }
+        .environment(\.editMode, .constant(.active))
         .navigationTitle(trip.title)
+        .navigationDestination(
+            isPresented: Binding(
+                get: { sectionToOpen != nil },
+                set: { if !$0 { sectionToOpen = nil } }
+            )
+        ) {
+            if let sectionToOpen {
+                SectionEditorView(section: sectionToOpen)
+            }
+        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -101,6 +110,16 @@ struct TripEditorView: View {
                     } label: {
                         Label("Edit Trip Details", systemImage: "pencil")
                     }
+                    Button {
+                        isExportingDocx = true
+                    } label: {
+                        Label("Export to Word", systemImage: "doc")
+                    }
+                    Button {
+                        isExportingHTML = true
+                    } label: {
+                        Label("Export HTML Package", systemImage: "archivebox")
+                    }
                 } label: {
                     Label("Trip Actions", systemImage: "ellipsis.circle")
                 }
@@ -111,6 +130,20 @@ struct TripEditorView: View {
         }
         .sheet(isPresented: $isEditingTrip) {
             EditTripView(trip: trip)
+        }
+        .sheet(isPresented: $isExportingDocx) {
+            DocxExportView(
+                title: trip.title,
+                sections: trip.orderedSections,
+                allowsSelection: true
+            )
+        }
+        .sheet(isPresented: $isExportingHTML) {
+            HtmlExportView(
+                title: trip.title,
+                sections: trip.orderedSections,
+                allowsSelection: true
+            )
         }
         .alert(
             "Delete Section?",
@@ -131,20 +164,13 @@ struct TripEditorView: View {
         }
     }
 
-    @discardableResult
-    private func moveSection(sourceID: UUID, before targetID: UUID) -> Bool {
-        guard sourceID != targetID else { return false }
+    private func moveSections(from source: IndexSet, to destination: Int) {
         var ordered = trip.orderedSections
-        guard let sourceIndex = ordered.firstIndex(where: { $0.id == sourceID }),
-              let targetIndex = ordered.firstIndex(where: { $0.id == targetID }) else { return false }
-        let movingSection = ordered.remove(at: sourceIndex)
-        let adjustedTarget = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
-        ordered.insert(movingSection, at: adjustedTarget)
+        ordered.move(fromOffsets: source, toOffset: destination)
         for (index, section) in ordered.enumerated() {
             section.sortIndex = index
         }
         trip.touch()
-        return true
     }
 }
 

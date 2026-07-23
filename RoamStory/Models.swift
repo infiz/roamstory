@@ -345,6 +345,24 @@ extension ContentBlock {
     }
 }
 
+enum BlockOrdering {
+    static func moving(
+        _ blocks: [ContentBlock],
+        sourceID: UUID,
+        toInsertionIndex insertionIndex: Int
+    ) -> [ContentBlock]? {
+        guard let sourceIndex = blocks.firstIndex(where: { $0.id == sourceID }) else { return nil }
+        var reordered = blocks
+        let movingBlock = reordered.remove(at: sourceIndex)
+        var destination = min(max(insertionIndex, 0), reordered.count + 1)
+        if sourceIndex < destination { destination -= 1 }
+        destination = min(max(destination, 0), reordered.count)
+        guard destination != sourceIndex else { return nil }
+        reordered.insert(movingBlock, at: destination)
+        return reordered
+    }
+}
+
 extension Date {
     var alignedToHour: Date {
         Calendar.current.dateInterval(of: .hour, for: self)?.start ?? self

@@ -1,6 +1,7 @@
 import MapKit
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct SectionEditorView: View {
     @Environment(\.modelContext) private var modelContext
@@ -14,6 +15,9 @@ struct SectionEditorView: View {
     @State private var photoBeingChanged: ContentBlock?
     @State private var isChangingMapLocation = false
     @State private var photoLinkBeingEdited: ContentBlock?
+    @State private var isExportingDocx = false
+    @State private var isExportingHTML = false
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
         List {
@@ -33,7 +37,6 @@ struct SectionEditorView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             BlockTypeHeader(
                                 type: block.type,
-                                blockID: block.id,
                                 onDelete: { blockPendingDeletion = block },
                                 onEditGallery: { galleryBeingEdited = block },
                                 onChangePhoto: {
@@ -46,7 +49,11 @@ struct SectionEditorView: View {
                                     block.linkURLString = ""
                                     section.touch()
                                 },
-                                hasLink: !block.linkURLString.isEmpty
+                                hasLink: !block.linkURLString.isEmpty,
+                                canMoveUp: index > 0,
+                                canMoveDown: index < section.orderedBlocks.count - 1,
+                                onMoveUp: { moveBlock(block.id, by: -1) },
+                                onMoveDown: { moveBlock(block.id, by: 1) }
                             )
                             BlockEditorView(block: block) {
                                 section.touch()
@@ -68,17 +75,15 @@ struct SectionEditorView: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let sourceValue = items.first,
-                              let sourceID = UUID(uuidString: sourceValue) else { return false }
-                        return moveBlock(sourceID: sourceID, before: block.id)
-                    }
                     .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10))
                     .listRowBackground(Color.clear)
                 }
+                .onMove(perform: moveBlocks)
                 blockInsertionDivider(at: section.orderedBlocks.count)
             }
         }
+        .environment(\.editMode, $editMode)
+        .scrollDismissesKeyboard(.interactively)
         .contentMargins(.top, 2, for: .scrollContent)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -91,8 +96,45 @@ struct SectionEditorView: View {
                     sectionMetadataPill
                 }
             }
-            ToolbarItem(placement: .secondaryAction) {
-                Button("Edit Section") { isEditingSection = true }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        isEditingSection = true
+                    } label: {
+                        Label("Edit Section", systemImage: "pencil")
+                    }
+                    Button {
+                        isExportingDocx = true
+                    } label: {
+                        Label("Export Section to Word", systemImage: "doc")
+                    }
+                    Button {
+                        isExportingHTML = true
+                    } label: {
+                        Label("Export Section as HTML", systemImage: "archivebox")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Section actions")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(editMode.isEditing ? "Done" : "Edit") {
+                    withAnimation {
+                        editMode = editMode.isEditing ? .inactive : .active
+                    }
+                }
+                .accessibilityHint(
+                    editMode.isEditing
+                        ? "Hides block reordering controls"
+                        : "Shows block reordering controls"
+                )
+            }
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    dismissKeyboard()
+                }
             }
         }
         .sheet(isPresented: $isEditingSection) {
@@ -129,6 +171,20 @@ struct SectionEditorView: View {
             }
             .presentationDetents([.medium])
         }
+        .sheet(isPresented: $isExportingDocx) {
+            DocxExportView(
+                title: section.title,
+                sections: [section],
+                allowsSelection: false
+            )
+        }
+        .sheet(isPresented: $isExportingHTML) {
+            HtmlExportView(
+                title: section.title,
+                sections: [section],
+                allowsSelection: false
+            )
+        }
         .alert(
             "Delete Block?",
             isPresented: Binding(
@@ -148,6 +204,15 @@ struct SectionEditorView: View {
         } message: {
             Text("This content will be removed from the section. Photos and videos in your Photos library are not deleted.")
         }
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 
     private func blockInsertionDivider(at index: Int) -> some View {
@@ -264,20 +329,25 @@ struct SectionEditorView: View {
         section.touch()
     }
 
-    @discardableResult
-    private func moveBlock(sourceID: UUID, before targetID: UUID) -> Bool {
-        guard sourceID != targetID else { return false }
+    private func moveBlocks(from source: IndexSet, to destination: Int) {
         var ordered = section.orderedBlocks
-        guard let sourceIndex = ordered.firstIndex(where: { $0.id == sourceID }),
-              let targetIndex = ordered.firstIndex(where: { $0.id == targetID }) else { return false }
-        let movingBlock = ordered.remove(at: sourceIndex)
-        let adjustedTarget = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
-        ordered.insert(movingBlock, at: adjustedTarget)
+        ordered.move(fromOffsets: source, toOffset: destination)
         for (index, block) in ordered.enumerated() {
             block.sortIndex = index
         }
         section.touch()
-        return true
+    }
+
+    private func moveBlock(_ blockID: UUID, by offset: Int) {
+        var ordered = section.orderedBlocks
+        guard let sourceIndex = ordered.firstIndex(where: { $0.id == blockID }) else { return }
+        let destination = sourceIndex + offset
+        guard ordered.indices.contains(destination) else { return }
+        ordered.swapAt(sourceIndex, destination)
+        for (index, block) in ordered.enumerated() {
+            block.sortIndex = index
+        }
+        section.touch()
     }
 
     private func normalizeBlockOrder() {
@@ -312,6 +382,28 @@ private struct BlockBoundaryView: View {
     let onAdd: (BlockInsertionChoice) -> Void
 
     var body: some View {
+        ZStack {
+            HStack(spacing: 5) {
+                Capsule()
+                    .fill(isSelected ? Color.accentColor : .secondary.opacity(0.22))
+                    .frame(maxWidth: 36)
+                    .frame(height: 1)
+                Capsule()
+                    .fill(isSelected ? Color.accentColor : .secondary.opacity(0.22))
+                    .frame(maxWidth: 36)
+                    .frame(height: 1)
+            }
+            .frame(maxWidth: .infinity)
+
+            addMenu
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 26)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .contain)
+    }
+
+    private var addMenu: some View {
         Menu {
             Button { onAdd(.block(.paragraph)) } label: {
                 Label("Paragraph", systemImage: "text.alignleft")
@@ -342,19 +434,10 @@ private struct BlockBoundaryView: View {
                 Label("Map", systemImage: "map")
             }
         } label: {
-            HStack(spacing: 5) {
-                Capsule()
-                    .fill(isSelected ? Color.accentColor : .secondary.opacity(0.22))
-                    .frame(width: 36, height: 1)
-                Image(systemName: isSelected ? "plus.circle.fill" : "plus.circle")
-                    .font(.caption)
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                Capsule()
-                    .fill(isSelected ? Color.accentColor : .secondary.opacity(0.22))
-                    .frame(width: 36, height: 1)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 18)
+            Image(systemName: isSelected ? "plus.circle.fill" : "plus.circle")
+                .font(.caption)
+                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                .frame(width: 44, height: 26)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -365,7 +448,6 @@ private struct BlockBoundaryView: View {
 
 private struct BlockTypeHeader: View {
     let type: BlockType
-    let blockID: UUID
     let onDelete: () -> Void
     let onEditGallery: () -> Void
     let onChangePhoto: () -> Void
@@ -373,6 +455,10 @@ private struct BlockTypeHeader: View {
     let onEditPhotoLink: () -> Void
     let onRemovePhotoLink: () -> Void
     let hasLink: Bool
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -406,6 +492,15 @@ private struct BlockTypeHeader: View {
                 if type == .gallery || type == .photo || type == .map {
                     Divider()
                 }
+                Button(action: onMoveUp) {
+                    Label("Move Up", systemImage: "arrow.up")
+                }
+                .disabled(!canMoveUp)
+                Button(action: onMoveDown) {
+                    Label("Move Down", systemImage: "arrow.down")
+                }
+                .disabled(!canMoveDown)
+                Divider()
                 Button(role: .destructive, action: onDelete) {
                     Label("Delete \(type.label)", systemImage: "trash")
                 }
@@ -417,13 +512,6 @@ private struct BlockTypeHeader: View {
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("\(type.label) block actions")
-            Image(systemName: "line.3.horizontal")
-                .font(.body.weight(.semibold))
-                .frame(width: 36, height: 32)
-                .contentShape(Rectangle())
-                .draggable(blockID.uuidString)
-                .accessibilityLabel("Move \(type.label) block")
-                .accessibilityHint("Drag to another block to reorder")
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
@@ -652,27 +740,30 @@ private struct MediaBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let reference = block.mediaReferences.first {
-                Group {
-                    if block.type == .video {
-                        VideoAssetView(reference: reference)
-                    } else if let linkURL = LinkAddress.normalizedURL(from: block.linkURLString) {
-                        Link(destination: linkURL) {
+                GeometryReader { geometry in
+                    Group {
+                        if block.type == .video {
+                            VideoAssetView(reference: reference)
+                        } else if let linkURL = LinkAddress.normalizedURL(from: block.linkURLString) {
+                            Link(destination: linkURL) {
+                                PhotoAssetView(reference: reference)
+                                    .overlay(alignment: .topTrailing) {
+                                        Image(systemName: "link.circle.fill")
+                                            .font(.title2)
+                                            .foregroundStyle(.white, .blue)
+                                            .padding(10)
+                                    }
+                            }
+                            .accessibilityHint("Opens the photo link")
+                        } else {
                             PhotoAssetView(reference: reference)
-                                .overlay(alignment: .topTrailing) {
-                                    Image(systemName: "link.circle.fill")
-                                        .font(.title2)
-                                        .foregroundStyle(.white, .blue)
-                                        .padding(10)
-                                }
                         }
-                        .accessibilityHint("Opens the photo link")
-                    } else {
-                        PhotoAssetView(reference: reference)
                     }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
                 }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 240)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                .frame(height: 240)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
             } else {
                 MissingMediaView()
             }
@@ -771,7 +862,7 @@ private struct GalleryBlockView: View {
         VStack(alignment: .leading, spacing: 10) {
             TabView {
                 ForEach(block.orderedMediaReferences) { reference in
-                    PhotoAssetView(reference: reference)
+                    PhotoAssetView(reference: reference, fitEntireImage: true)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .padding(.horizontal, 2)
                 }
