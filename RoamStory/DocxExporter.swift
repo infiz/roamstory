@@ -140,8 +140,6 @@ struct DocxExporter {
             var result = block.title.isEmpty ? "" : heading(block.title, level: 3)
             result += paragraph(block.text, style: "Quote")
             return result
-        case .code:
-            return paragraph(block.text, style: "Code")
         case .divider:
             return """
             <w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="B7B7B7"/></w:pBdr></w:pPr></w:p>

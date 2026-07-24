@@ -620,9 +620,6 @@ private struct BlockBoundaryView: View {
             Button { onAdd(.block(.quote)) } label: {
                 Label("Quote", systemImage: "quote.opening")
             }
-            Button { onAdd(.block(.code)) } label: {
-                Label("Code", systemImage: "chevron.left.forwardslash.chevron.right")
-            }
             Button { onAdd(.block(.divider)) } label: {
                 Label("Divider", systemImage: "minus")
             }
@@ -738,7 +735,7 @@ private struct BlockEditorView: View {
     var body: some View {
         Group {
             switch block.type {
-            case .paragraph, .quote, .code:
+            case .paragraph, .quote:
                 FullScreenTextBlockView(
                     block: block,
                     undoManager: undoManager,
@@ -785,14 +782,6 @@ private struct FullScreenTextBlockView: View {
                     Text("Tap to write this \(block.type.label.lowercased())")
                         .foregroundStyle(.secondary)
                         .italic()
-                } else if block.type == .code {
-                    CodeBlockChrome(text: block.text) {
-                        Text(block.text)
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                    }
                 } else {
                     Text(displayText)
                         .foregroundStyle(.primary)
@@ -847,7 +836,12 @@ private struct FullScreenTextBlockEditor: View {
         NavigationStack {
             GeometryReader { geometry in
                 ScrollView {
-                    editorContent(minimumHeight: max(geometry.size.height - 170, 300))
+                    RichParagraphView(
+                        block: block,
+                        onChange: onChange,
+                        minimumEditorHeight: max(geometry.size.height - 170, 300),
+                        automaticallyFocusEditor: true
+                    )
                     .padding()
                 }
                 .scrollDismissesKeyboard(.interactively)
@@ -903,25 +897,6 @@ private struct FullScreenTextBlockEditor: View {
         }
     }
 
-    @ViewBuilder
-    private func editorContent(minimumHeight: CGFloat) -> some View {
-        if block.type == .code {
-            CodeBlockView(
-                block: block,
-                onChange: onChange,
-                minimumHeight: minimumHeight,
-                automaticallyFocus: true
-            )
-        } else {
-            RichParagraphView(
-                block: block,
-                onChange: onChange,
-                minimumEditorHeight: minimumHeight,
-                automaticallyFocusEditor: true
-            )
-        }
-    }
-
     private var canUndo: Bool {
         _ = undoStateVersion
         return paragraphUndoManager.canUndo
@@ -964,54 +939,44 @@ private struct CodeBlockView: View {
     let onChange: () -> Void
     let minimumHeight: CGFloat
     let automaticallyFocus: Bool
+    let fillsAvailableSpace: Bool
     @State private var draftText: String
     @State private var pendingCommitTask: Task<Void, Never>?
-    @FocusState private var isFocused: Bool
 
     init(
         block: ContentBlock,
         onChange: @escaping () -> Void,
         minimumHeight: CGFloat = 140,
-        automaticallyFocus: Bool = false
+        automaticallyFocus: Bool = false,
+        fillsAvailableSpace: Bool = false
     ) {
         self.block = block
         self.onChange = onChange
         self.minimumHeight = minimumHeight
         self.automaticallyFocus = automaticallyFocus
+        self.fillsAvailableSpace = fillsAvailableSpace
         _draftText = State(initialValue: block.text)
     }
 
     var body: some View {
-        CodeBlockChrome(text: draftText) {
-            TextEditor(text: $draftText)
-                .focused($isFocused)
-                .font(.system(.body, design: .monospaced))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .scrollContentBackground(.hidden)
-                .scrollDisabled(true)
-                .frame(
-                    maxWidth: .infinity,
-                    minHeight: max(minimumHeight - 16, 44),
-                    alignment: .topLeading
-                )
-                .onChange(of: draftText) { _, newValue in
-                    scheduleCommit(commitAtWordBoundary: newValue.last?.isWhitespace == true)
-                }
-                .onChange(of: isFocused) { _, focused in
-                    if !focused { commitPendingText() }
-                }
-                .onChange(of: block.text) { _, newValue in
-                    if !isFocused { draftText = newValue }
-                }
-                .onDisappear { commitPendingText() }
-                .onAppear {
-                    if automaticallyFocus {
-                        isFocused = true
-                    }
-                }
-                .accessibilityLabel("Code editor")
-            }
+        LineNumberCodeView(
+            text: $draftText,
+            minimumHeight: minimumHeight,
+            isEditable: true,
+            automaticallyFocus: automaticallyFocus,
+            fillsAvailableSpace: fillsAvailableSpace,
+            onTextChange: { newValue in
+                scheduleCommit(commitAtWordBoundary: newValue.last?.isWhitespace == true)
+            },
+            onEndEditing: commitPendingText
+        )
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .onChange(of: block.text) { _, newValue in
+            if draftText != newValue { draftText = newValue }
+        }
+        .onDisappear {
+            commitPendingText()
+        }
     }
 
     private func scheduleCommit(commitAtWordBoundary: Bool) {
@@ -1039,47 +1004,236 @@ private struct CodeBlockView: View {
     }
 }
 
-private struct CodeBlockChrome<Content: View>: View {
-    let text: String
-    let content: Content
+private final class LineNumberTextView: UITextView {
+    private let gutterWidth: CGFloat = 44
+    var automaticallyFocus = false
+    private var hasRequestedFocus = false
+    private var lastLaidOutWidth: CGFloat = 0
 
-    init(text: String, @ViewBuilder content: () -> Content) {
-        self.text = text
-        self.content = content()
+    override var text: String! {
+        didSet { setNeedsDisplay() }
     }
 
-    private var lineNumbers: String {
-        let lineCount = max(
-            text.split(separator: "\n", omittingEmptySubsequences: false).count,
-            1
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil, automaticallyFocus, !hasRequestedFocus else { return }
+        hasRequestedFocus = true
+        DispatchQueue.main.async { [weak self] in
+            self?.becomeFirstResponder()
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard abs(bounds.width - lastLaidOutWidth) > 0.5 else { return }
+        lastLaidOutWidth = bounds.width
+        if bounds.width > 0 {
+            layoutManager.ensureLayout(for: textContainer)
+            setNeedsDisplay()
+        }
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else {
+            super.draw(rect)
+            return
+        }
+
+        UIColor.tertiarySystemFill.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: gutterWidth, height: bounds.height))
+        UIColor.separator.setStroke()
+        context.setLineWidth(1 / UIScreen.main.scale)
+        context.move(to: CGPoint(x: gutterWidth, y: 0))
+        context.addLine(to: CGPoint(x: gutterWidth, y: bounds.height))
+        context.strokePath()
+
+        super.draw(rect)
+        drawLineNumbers()
+    }
+
+    private func drawLineNumbers() {
+        layoutManager.ensureLayout(for: textContainer)
+        let fullGlyphRange = NSRange(location: 0, length: layoutManager.numberOfGlyphs)
+        let source = text as NSString
+        var logicalLineNumber = 1
+
+        if fullGlyphRange.length == 0 {
+            draw(lineNumber: 1, y: textContainerInset.top)
+            return
+        }
+
+        layoutManager.enumerateLineFragments(
+            forGlyphRange: fullGlyphRange
+        ) { [weak self] _, usedRect, _, glyphRange, _ in
+            guard let self else { return }
+            let characterRange = self.layoutManager.characterRange(
+                forGlyphRange: glyphRange,
+                actualGlyphRange: nil
+            )
+            let startsLogicalLine = characterRange.location == 0
+                || source.character(at: characterRange.location - 1) == 10
+
+            if startsLogicalLine {
+                self.draw(
+                    lineNumber: logicalLineNumber,
+                    y: usedRect.minY + self.textContainerInset.top
+                )
+            }
+
+            if characterRange.length > 0 {
+                let fragment = source.substring(with: characterRange)
+                logicalLineNumber += fragment.reduce(into: 0) {
+                    if $1 == "\n" { $0 += 1 }
+                }
+            }
+        }
+
+        if text.hasSuffix("\n") {
+            draw(
+                lineNumber: logicalLineNumber,
+                y: layoutManager.extraLineFragmentRect.minY + textContainerInset.top
+            )
+        }
+    }
+
+    private func draw(lineNumber: Int, y: CGFloat) {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .right
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: Self.codeFont,
+            .foregroundColor: UIColor.tertiaryLabel,
+            .paragraphStyle: paragraphStyle,
+        ]
+        String(lineNumber).draw(
+            in: CGRect(x: 4, y: y, width: gutterWidth - 12, height: Self.codeFont.lineHeight),
+            withAttributes: attributes
         )
-        return (1...lineCount).map(String.init).joined(separator: "\n")
     }
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            Text(lineNumbers)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.trailing)
-                .frame(minWidth: 28, alignment: .topTrailing)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 8)
-                .accessibilityHidden(true)
+    static var codeFont: UIFont {
+        UIFont.monospacedSystemFont(
+            ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize,
+            weight: .regular
+        )
+    }
+}
 
-            Divider()
+private struct LineNumberCodeView: UIViewRepresentable {
+    @Binding var text: String
+    let minimumHeight: CGFloat
+    let isEditable: Bool
+    let automaticallyFocus: Bool
+    var fillsAvailableSpace = false
+    let onTextChange: (String) -> Void
+    let onEndEditing: () -> Void
 
-            content
-                .padding(.horizontal, 8)
-                .padding(.vertical, 0)
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = LineNumberTextView()
+        textView.automaticallyFocus = automaticallyFocus
+        textView.delegate = context.coordinator
+        textView.text = text
+        textView.font = LineNumberTextView.codeFont
+        textView.backgroundColor = .secondarySystemBackground
+        textView.layer.cornerRadius = 10
+        textView.layer.borderWidth = 1 / UIScreen.main.scale
+        textView.layer.borderColor = UIColor.separator.cgColor
+        textView.clipsToBounds = true
+        textView.isEditable = isEditable
+        textView.isSelectable = isEditable
+        textView.isScrollEnabled = fillsAvailableSpace
+        textView.textContainerInset = UIEdgeInsets(top: 8, left: 52, bottom: 8, right: 8)
+        textView.textContainer.lineFragmentPadding = 0
+        textView.textContainer.lineBreakMode = .byWordWrapping
+        textView.autocorrectionType = .no
+        textView.autocapitalizationType = .none
+        textView.smartQuotesType = .no
+        textView.smartDashesType = .no
+        textView.smartInsertDeleteType = .no
+        textView.accessibilityLabel = isEditable ? "Code editor" : "Code"
+        if isEditable {
+            let keyboardToolbar = UIToolbar()
+            let hideKeyboardButton = UIBarButtonItem(
+                image: UIImage(systemName: "keyboard.chevron.compact.down"),
+                style: .plain,
+                target: context.coordinator,
+                action: #selector(Coordinator.hideKeyboard(_:))
+            )
+            hideKeyboardButton.accessibilityLabel = "Hide keyboard"
+            keyboardToolbar.items = [
+                UIBarButtonItem(
+                    barButtonSystemItem: .flexibleSpace,
+                    target: nil,
+                    action: nil
+                ),
+                hideKeyboardButton,
+            ]
+            keyboardToolbar.sizeToFit()
+            textView.inputAccessoryView = keyboardToolbar
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Color.secondary.opacity(0.09), in: RoundedRectangle(cornerRadius: 10))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(.secondary.opacity(0.18), lineWidth: 1)
+        return textView
+    }
+
+    func updateUIView(_ textView: UITextView, context: Context) {
+        context.coordinator.parent = self
+        if !textView.isFirstResponder, textView.text != text {
+            textView.text = text
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        textView.isEditable = isEditable
+        textView.isSelectable = isEditable
+        textView.isScrollEnabled = fillsAvailableSpace
+        textView.setNeedsDisplay()
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiView: UITextView,
+        context: Context
+    ) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        if fillsAvailableSpace, let height = proposal.height {
+            return CGSize(width: width, height: max(height, minimumHeight))
+        }
+        let fitted = uiView.sizeThatFits(
+            CGSize(width: width, height: .greatestFiniteMagnitude)
+        )
+        return CGSize(width: width, height: max(fitted.height, minimumHeight))
+    }
+
+    static func dismantleUIView(_ textView: UITextView, coordinator: Coordinator) {
+        coordinator.parent.onEndEditing()
+        textView.delegate = nil
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: LineNumberCodeView
+
+        init(parent: LineNumberCodeView) {
+            self.parent = parent
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text = textView.text
+            parent.onTextChange(textView.text)
+            textView.setNeedsDisplay()
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.onEndEditing()
+        }
+
+        @objc func hideKeyboard(_ sender: UIBarButtonItem) {
+            parent.onEndEditing()
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil,
+                from: nil,
+                for: nil
+            )
+        }
     }
 }
 

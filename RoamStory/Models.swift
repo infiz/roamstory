@@ -87,7 +87,6 @@ enum BlockType: String, CaseIterable, Codable {
     case paragraph
     case heading
     case quote
-    case code
     case divider
     case photo
     case gallery
@@ -99,7 +98,6 @@ enum BlockType: String, CaseIterable, Codable {
         case .paragraph: "Paragraph"
         case .heading: "Heading"
         case .quote: "Quote"
-        case .code: "Code"
         case .divider: "Divider"
         case .photo: "Photo"
         case .gallery: "Gallery"
@@ -113,13 +111,20 @@ enum BlockType: String, CaseIterable, Codable {
         case .paragraph: "text.alignleft"
         case .heading: "textformat.size.larger"
         case .quote: "quote.opening"
-        case .code: "chevron.left.forwardslash.chevron.right"
         case .divider: "minus"
         case .photo: "photo"
         case .gallery: "rectangle.stack"
         case .video: "video"
         case .map: "map"
         }
+    }
+
+    static func storedValue(_ rawValue: String) -> BlockType {
+        // Code blocks from older app versions remain readable as paragraphs.
+        if rawValue == "code" {
+            return .paragraph
+        }
+        return BlockType(rawValue: rawValue) ?? .paragraph
     }
 }
 
@@ -305,7 +310,7 @@ final class ContentBlock {
     }
 
     var type: BlockType {
-        get { BlockType(rawValue: typeRawValue) ?? .paragraph }
+        get { BlockType.storedValue(typeRawValue) }
         set { typeRawValue = newValue.rawValue }
     }
 }
