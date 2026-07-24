@@ -36,8 +36,20 @@ struct SectionEditorView: View {
 
     var body: some View {
         List {
-            if let startDate = section.startDate, let endDate = section.endDate {
-                HStack {
+            VStack(alignment: .leading, spacing: 5) {
+                if !section.placeName.isEmpty {
+                    Label {
+                        Text(section.placeName)
+                            .lineLimit(1)
+                    } icon: {
+                        Image(systemName: "mappin.and.ellipse")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Section location \(section.placeName)")
+                }
+
+                if let startDate = section.startDate, let endDate = section.endDate {
                     Label {
                         Text(DateRangeFormatting.summary(start: startDate, end: endDate))
                             .monospacedDigit()
@@ -49,44 +61,18 @@ struct SectionEditorView: View {
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                    Spacer(minLength: 8)
-
-                    Text(section.formattedDataSize)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.secondary.opacity(0.12), in: Capsule())
+                    .accessibilityLabel(
+                        "Section dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
+                    )
                 }
-                .padding(.vertical, 0)
-                .listRowInsets(
-                    EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
-                )
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .environment(\.defaultMinListRowHeight, 0)
-                .accessibilityLabel(
-                    "Section dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
-                )
-            } else {
-                HStack {
-                    Spacer()
-                    Text(section.formattedDataSize)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.secondary.opacity(0.12), in: Capsule())
-                }
-                .padding(.vertical, 0)
-                .listRowInsets(
-                    EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
-                )
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .environment(\.defaultMinListRowHeight, 0)
             }
+            .padding(.vertical, 0)
+            .listRowInsets(
+                EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
+            )
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .environment(\.defaultMinListRowHeight, 0)
 
             if section.orderedBlocks.isEmpty {
                 blockInsertionDivider(at: 0)
@@ -212,13 +198,14 @@ struct SectionEditorView: View {
                     Text(section.title)
                         .font(.headline)
                         .lineLimit(1)
-                    sectionMetadataPill
+                        .truncationMode(.tail)
                     Text(section.formattedDataSize)
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(.secondary.opacity(0.12), in: Capsule())
+                        .fixedSize()
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -489,33 +476,9 @@ struct SectionEditorView: View {
         .listRowSeparator(.hidden)
     }
 
-    private var sectionMetadataAccessibilityLabel: String {
-        if section.placeName.isEmpty {
-            return "\(section.kind.label) section"
-        }
-        return "\(section.kind.label) section at \(section.placeName)"
-    }
-
     private var sectionCoordinate: CLLocationCoordinate2D? {
         guard let latitude = section.latitude, let longitude = section.longitude else { return nil }
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-    }
-
-    private var sectionMetadataPill: some View {
-        HStack(spacing: 4) {
-            Image(systemName: section.kind.systemImage)
-                .font(.caption2.weight(.semibold))
-            Text(section.placeName.isEmpty ? section.kind.label : section.placeName)
-                .lineLimit(1)
-        }
-        .font(.caption2.weight(.medium))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(.tint.opacity(0.09), in: Capsule())
-        .frame(maxWidth: 145)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(sectionMetadataAccessibilityLabel)
     }
 
     private func addTextBlock(_ type: BlockType) {
