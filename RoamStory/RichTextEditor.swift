@@ -252,18 +252,20 @@ struct RichTextEditor: UIViewRepresentable {
             .underlineStyle: NSUnderlineStyle.single.rawValue,
         ]
         let keyboardToolbar = UIToolbar()
+        let dismissKeyboardButton = UIBarButtonItem(
+            image: UIImage(systemName: "keyboard.chevron.compact.down"),
+            style: .plain,
+            target: context.coordinator,
+            action: #selector(Coordinator.dismissKeyboard(_:))
+        )
+        dismissKeyboardButton.accessibilityLabel = "Hide keyboard"
         keyboardToolbar.items = [
             UIBarButtonItem(
                 barButtonSystemItem: .flexibleSpace,
                 target: nil,
                 action: nil
             ),
-            UIBarButtonItem(
-                title: "Done",
-                style: .plain,
-                target: context.coordinator,
-                action: #selector(Coordinator.dismissKeyboard(_:))
-            ),
+            dismissKeyboardButton,
         ]
         keyboardToolbar.sizeToFit()
         textView.inputAccessoryView = keyboardToolbar
