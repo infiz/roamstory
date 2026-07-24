@@ -1142,9 +1142,11 @@ private struct RichParagraphView: View {
                 controller: formattingController,
                 onChange: onChange
             )
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(
                     minHeight: minimumEditorHeight
-                        ?? (block.type == .heading ? 54 : 100)
+                        ?? (block.type == .heading ? 54 : 100),
+                    alignment: .topLeading
                 )
         }
         .padding(.vertical, 8)
