@@ -786,10 +786,13 @@ private struct FullScreenTextBlockView: View {
                         .foregroundStyle(.secondary)
                         .italic()
                 } else if block.type == .code {
-                    Text(block.text)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
+                    CodeBlockChrome(text: block.text) {
+                        Text(block.text)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
                 } else {
                     Text(displayText)
                         .foregroundStyle(.primary)
@@ -979,35 +982,36 @@ private struct CodeBlockView: View {
     }
 
     var body: some View {
-        TextEditor(text: $draftText)
-            .focused($isFocused)
-            .font(.system(.body, design: .monospaced))
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .scrollContentBackground(.hidden)
-            .padding(8)
-            .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .topLeading)
-            .background(Color.secondary.opacity(0.09), in: RoundedRectangle(cornerRadius: 10))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.secondary.opacity(0.18), lineWidth: 1)
-            }
-            .onChange(of: draftText) { _, newValue in
-                scheduleCommit(commitAtWordBoundary: newValue.last?.isWhitespace == true)
-            }
-            .onChange(of: isFocused) { _, focused in
-                if !focused { commitPendingText() }
-            }
-            .onChange(of: block.text) { _, newValue in
-                if !isFocused { draftText = newValue }
-            }
-            .onDisappear { commitPendingText() }
-            .onAppear {
-                if automaticallyFocus {
-                    isFocused = true
+        CodeBlockChrome(text: draftText) {
+            TextEditor(text: $draftText)
+                .focused($isFocused)
+                .font(.system(.body, design: .monospaced))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .scrollContentBackground(.hidden)
+                .scrollDisabled(true)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: max(minimumHeight - 16, 44),
+                    alignment: .topLeading
+                )
+                .onChange(of: draftText) { _, newValue in
+                    scheduleCommit(commitAtWordBoundary: newValue.last?.isWhitespace == true)
                 }
+                .onChange(of: isFocused) { _, focused in
+                    if !focused { commitPendingText() }
+                }
+                .onChange(of: block.text) { _, newValue in
+                    if !isFocused { draftText = newValue }
+                }
+                .onDisappear { commitPendingText() }
+                .onAppear {
+                    if automaticallyFocus {
+                        isFocused = true
+                    }
+                }
+                .accessibilityLabel("Code editor")
             }
-            .accessibilityLabel("Code editor")
     }
 
     private func scheduleCommit(commitAtWordBoundary: Bool) {
@@ -1032,6 +1036,50 @@ private struct CodeBlockView: View {
         onChange()
         modelContext.undoManager?.endUndoGrouping()
         modelContext.undoManager?.setActionName("Edit Code")
+    }
+}
+
+private struct CodeBlockChrome<Content: View>: View {
+    let text: String
+    let content: Content
+
+    init(text: String, @ViewBuilder content: () -> Content) {
+        self.text = text
+        self.content = content()
+    }
+
+    private var lineNumbers: String {
+        let lineCount = max(
+            text.split(separator: "\n", omittingEmptySubsequences: false).count,
+            1
+        )
+        return (1...lineCount).map(String.init).joined(separator: "\n")
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            Text(lineNumbers)
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.trailing)
+                .frame(minWidth: 28, alignment: .topTrailing)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 8)
+                .accessibilityHidden(true)
+
+            Divider()
+
+            content
+                .padding(.horizontal, 8)
+                .padding(.vertical, 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(Color.secondary.opacity(0.09), in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(.secondary.opacity(0.18), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 
