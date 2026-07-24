@@ -15,10 +15,28 @@ struct TripEditorView: View {
 
     var body: some View {
         List {
-            if !trip.subtitle.isEmpty {
-                Text(trip.subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            if let startDate = trip.startDate, let endDate = trip.endDate {
+                Label {
+                    Text(DateRangeFormatting.summary(start: startDate, end: endDate))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .allowsTightening(true)
+                } icon: {
+                    Image(systemName: "calendar")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 0)
+                .listRowInsets(
+                    EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .environment(\.defaultMinListRowHeight, 0)
+                .accessibilityLabel(
+                    "Trip dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
+                )
             }
 
             if trip.orderedSections.isEmpty {
@@ -43,17 +61,22 @@ struct TripEditorView: View {
                                         .frame(width: 32, height: 32)
                                         .background(.blue.opacity(0.12), in: Circle())
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(section.title)
-                                            .font(.headline)
+                                        HStack(spacing: 6) {
+                                            Text(section.title)
+                                                .font(.headline)
+                                                .lineLimit(1)
+                                                .truncationMode(.tail)
+                                            Text(section.formattedDataSize)
+                                                .font(.caption2.weight(.medium))
+                                                .foregroundStyle(.secondary)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(.secondary.opacity(0.12), in: Capsule())
+                                                .fixedSize()
+                                        }
                                         SectionBlockSummary(section: section)
                                     }
                                     Spacer(minLength: 0)
-                                    Text(section.formattedDataSize)
-                                        .font(.caption2.weight(.medium))
-                                        .foregroundStyle(.secondary)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(.secondary.opacity(0.12), in: Capsule())
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
@@ -91,16 +114,17 @@ struct TripEditorView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         if let startDate = section.startDate, let endDate = section.endDate {
-                            HStack(spacing: 12) {
-                                Image(systemName: "calendar")
-                                    .frame(width: 32)
+                            Label {
                                 Text(DateRangeFormatting.summary(start: startDate, end: endDate))
                                     .monospacedDigit()
-                                    .fixedSize(horizontal: false, vertical: true)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                                    .allowsTightening(true)
+                            } icon: {
+                                Image(systemName: "calendar")
                             }
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .lineLimit(2)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .accessibilityLabel(
                                 "Section dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
@@ -112,6 +136,7 @@ struct TripEditorView: View {
             }
         }
         .environment(\.editMode, $sectionListEditMode)
+        .contentMargins(.top, 2, for: .scrollContent)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -120,12 +145,14 @@ struct TripEditorView: View {
                     Text(trip.title)
                         .font(.headline)
                         .lineLimit(1)
+                        .truncationMode(.tail)
                     Text(trip.formattedDataSize)
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(.secondary.opacity(0.12), in: Capsule())
+                        .fixedSize()
                 }
             }
             ToolbarItemGroup(placement: .primaryAction) {
