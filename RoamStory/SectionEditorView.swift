@@ -150,6 +150,7 @@ struct SectionEditorView: View {
                     }
                     .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10))
                     .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                     .overlay {
                         if highlightedBlockID == block.id {
                             RoundedRectangle(cornerRadius: 16)
@@ -482,6 +483,7 @@ struct SectionEditorView: View {
             case .map: addMapBlock()
             }
         }
+        .padding(.trailing, editMode.isEditing ? 36 : 0)
         .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 2, trailing: 10))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -894,7 +896,8 @@ private struct FullScreenParagraphEditor: View {
                     RichParagraphView(
                         block: block,
                         onChange: onChange,
-                        minimumEditorHeight: max(geometry.size.height - 170, 300)
+                        minimumEditorHeight: max(geometry.size.height - 170, 300),
+                        automaticallyFocusEditor: true
                     )
                     .padding()
                 }
@@ -1057,6 +1060,7 @@ private struct RichParagraphView: View {
     @Bindable var block: ContentBlock
     let onChange: () -> Void
     var minimumEditorHeight: CGFloat? = nil
+    var automaticallyFocusEditor = false
     @StateObject private var formattingController = RichTextFormattingController()
     @State private var isEditingLink = false
     @State private var linkAddress = ""
@@ -1140,14 +1144,11 @@ private struct RichParagraphView: View {
             RichTextEditor(
                 block: block,
                 controller: formattingController,
+                minimumHeight: editorMinimumHeight,
+                automaticallyFocus: automaticallyFocusEditor,
                 onChange: onChange
             )
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(
-                    minHeight: minimumEditorHeight
-                        ?? (block.type == .heading ? 54 : 100),
-                    alignment: .topLeading
-                )
         }
         .padding(.vertical, 8)
         .sheet(isPresented: $isEditingLink) {
@@ -1160,6 +1161,10 @@ private struct RichParagraphView: View {
             )
             .presentationDetents([.medium])
         }
+    }
+
+    private var editorMinimumHeight: CGFloat {
+        minimumEditorHeight ?? (block.type == .heading ? 54 : 100)
     }
 }
 
