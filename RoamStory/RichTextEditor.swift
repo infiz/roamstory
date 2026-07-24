@@ -2,6 +2,20 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+private final class AutomaticallyFocusingTextView: UITextView {
+    var automaticallyFocus = false
+    private var hasRequestedFocus = false
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil, automaticallyFocus, !hasRequestedFocus else { return }
+        hasRequestedFocus = true
+        DispatchQueue.main.async { [weak self] in
+            self?.becomeFirstResponder()
+        }
+    }
+}
+
 @MainActor
 final class RichTextFormattingController: ObservableObject {
     @Published private(set) var fontFamily = "New York"
@@ -207,6 +221,8 @@ struct RichTextEditor: UIViewRepresentable {
     @Environment(\.modelContext) private var modelContext
     @Bindable var block: ContentBlock
     let controller: RichTextFormattingController
+    let minimumHeight: CGFloat
+    let automaticallyFocus: Bool
     let onChange: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -219,7 +235,8 @@ struct RichTextEditor: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        let textView = AutomaticallyFocusingTextView()
+        textView.automaticallyFocus = automaticallyFocus
         textView.delegate = context.coordinator
         textView.backgroundColor = .clear
         textView.isScrollEnabled = false
@@ -267,7 +284,7 @@ struct RichTextEditor: UIViewRepresentable {
         let fittingSize = uiView.sizeThatFits(
             CGSize(width: width, height: .greatestFiniteMagnitude)
         )
-        return CGSize(width: width, height: fittingSize.height)
+        return CGSize(width: width, height: max(fittingSize.height, minimumHeight))
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
