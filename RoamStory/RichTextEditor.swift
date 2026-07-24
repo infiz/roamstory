@@ -223,6 +223,10 @@ struct RichTextEditor: UIViewRepresentable {
         textView.delegate = context.coordinator
         textView.backgroundColor = .clear
         textView.isScrollEnabled = false
+        textView.alwaysBounceHorizontal = false
+        textView.showsHorizontalScrollIndicator = false
+        textView.textContainer.widthTracksTextView = true
+        textView.textContainer.lineBreakMode = .byWordWrapping
         textView.adjustsFontForContentSizeCategory = true
         textView.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
         textView.accessibilityLabel = block.type == .heading ? "Heading text" : "Paragraph text"
@@ -252,6 +256,18 @@ struct RichTextEditor: UIViewRepresentable {
         textView.typingAttributes = defaultAttributes(for: block)
         controller.attach(textView)
         return textView
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiView: UITextView,
+        context: Context
+    ) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        let fittingSize = uiView.sizeThatFits(
+            CGSize(width: width, height: .greatestFiniteMagnitude)
+        )
+        return CGSize(width: width, height: fittingSize.height)
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
