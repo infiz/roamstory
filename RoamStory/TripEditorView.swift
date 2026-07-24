@@ -11,7 +11,6 @@ struct TripEditorView: View {
     @State private var isExportingHTML = false
     @State private var sectionBeingEdited: TripSection?
     @State private var sectionPendingDeletion: TripSection?
-    @State private var sectionListEditMode: EditMode = .inactive
 
     var body: some View {
         List {
@@ -135,7 +134,6 @@ struct TripEditorView: View {
                 .onMove(perform: moveSections)
             }
         }
-        .environment(\.editMode, $sectionListEditMode)
         .contentMargins(.top, 2, for: .scrollContent)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -156,18 +154,6 @@ struct TripEditorView: View {
                 }
             }
             ToolbarItemGroup(placement: .primaryAction) {
-                Button(sectionListEditMode.isEditing ? "Done" : "Reorder") {
-                    withAnimation {
-                        sectionListEditMode = sectionListEditMode.isEditing
-                            ? .inactive
-                            : .active
-                    }
-                }
-                .accessibilityHint(
-                    sectionListEditMode.isEditing
-                        ? "Finishes reordering sections"
-                        : "Shows controls for reordering sections"
-                )
                 Button {
                     isCreatingSection = true
                 } label: {

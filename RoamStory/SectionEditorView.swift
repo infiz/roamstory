@@ -1,5 +1,6 @@
 import Combine
 import MapKit
+import Photos
 import SwiftData
 import SwiftUI
 import UIKit
@@ -23,7 +24,6 @@ struct SectionEditorView: View {
     @State private var photoLinkBeingEdited: ContentBlock?
     @State private var isExportingDocx = false
     @State private var isExportingHTML = false
-    @State private var editMode: EditMode = .inactive
     @State private var sectionUndoManager = UndoManager()
     @State private var hasInitializedUndoScope = false
     @State private var undoStateVersion = 0
@@ -109,6 +109,7 @@ struct SectionEditorView: View {
                                 onMoveUp: { moveBlock(block.id, by: -1) },
                                 onMoveDown: { moveBlock(block.id, by: 1) }
                             )
+                            .zIndex(1)
                             BlockEditorView(
                                 block: block,
                                 undoManager: sectionUndoManager
@@ -142,7 +143,6 @@ struct SectionEditorView: View {
                 blockInsertionDivider(at: section.orderedBlocks.count)
             }
         }
-        .environment(\.editMode, $editMode)
         .scrollPosition(id: $scrollTargetBlockID, anchor: .center)
         .scrollDismissesKeyboard(.interactively)
         .onAppear {
@@ -202,18 +202,6 @@ struct SectionEditorView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button(editMode.isEditing ? "Done" : "Reorder") {
-                    withAnimation {
-                        editMode = editMode.isEditing ? .inactive : .active
-                    }
-                }
-                .accessibilityHint(
-                    editMode.isEditing
-                        ? "Hides block reordering controls"
-                        : "Shows block reordering controls"
-                )
-            }
-            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
                         undo()
@@ -264,10 +252,9 @@ struct SectionEditorView: View {
                 Button {
                     dismissKeyboard()
                 } label: {
-                    Text("Done")
-                        .fontWeight(.semibold)
+                    Image(systemName: "keyboard.chevron.compact.down")
                 }
-                .accessibilityLabel("Done editing")
+                .accessibilityLabel("Hide keyboard")
             }
             ToolbarItemGroup(placement: .bottomBar) {
                 Button {
@@ -463,7 +450,6 @@ struct SectionEditorView: View {
             case .map: addMapBlock()
             }
         }
-        .padding(.trailing, editMode.isEditing ? 36 : 0)
         .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 2, trailing: 10))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -752,16 +738,14 @@ private struct BlockEditorView: View {
     var body: some View {
         Group {
             switch block.type {
-            case .paragraph:
-                ParagraphBlockView(
+            case .paragraph, .quote, .code:
+                FullScreenTextBlockView(
                     block: block,
                     undoManager: undoManager,
                     onChange: onChange
                 )
-            case .heading, .quote:
+            case .heading:
                 RichParagraphView(block: block, onChange: onChange)
-            case .code:
-                CodeBlockView(block: block, onChange: onChange)
             case .divider:
                 Divider()
                     .padding(.vertical, 12)
@@ -780,7 +764,7 @@ private struct BlockEditorView: View {
     }
 }
 
-private struct ParagraphBlockView: View {
+private struct FullScreenTextBlockView: View {
     @Bindable var block: ContentBlock
     let undoManager: UndoManager
     let onChange: () -> Void
@@ -798,9 +782,14 @@ private struct ParagraphBlockView: View {
                 }
 
                 if block.text.isEmpty {
-                    Text("Tap to write this paragraph")
+                    Text("Tap to write this \(block.type.label.lowercased())")
                         .foregroundStyle(.secondary)
                         .italic()
+                } else if block.type == .code {
+                    Text(block.text)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
                 } else {
                     Text(displayText)
                         .foregroundStyle(.primary)
@@ -817,11 +806,11 @@ private struct ParagraphBlockView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(
             block.title.isEmpty
-                ? "Edit paragraph full screen"
-                : "Edit \(block.title) paragraph full screen"
+                ? "Edit \(block.type.label.lowercased()) full screen"
+                : "Edit \(block.title) \(block.type.label.lowercased()) full screen"
         )
         .fullScreenCover(isPresented: $isEditingFullScreen) {
-            FullScreenParagraphEditor(
+            FullScreenTextBlockEditor(
                 block: block,
                 sectionUndoManager: undoManager,
                 onChange: onChange
@@ -841,7 +830,7 @@ private struct ParagraphBlockView: View {
     }
 }
 
-private struct FullScreenParagraphEditor: View {
+private struct FullScreenTextBlockEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Bindable var block: ContentBlock
@@ -855,17 +844,12 @@ private struct FullScreenParagraphEditor: View {
         NavigationStack {
             GeometryReader { geometry in
                 ScrollView {
-                    RichParagraphView(
-                        block: block,
-                        onChange: onChange,
-                        minimumEditorHeight: max(geometry.size.height - 170, 300),
-                        automaticallyFocusEditor: true
-                    )
+                    editorContent(minimumHeight: max(geometry.size.height - 170, 300))
                     .padding()
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
-            .navigationTitle(block.title.isEmpty ? "Edit Paragraph" : block.title)
+            .navigationTitle(block.title.isEmpty ? "Edit \(block.type.label)" : block.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -916,6 +900,25 @@ private struct FullScreenParagraphEditor: View {
         }
     }
 
+    @ViewBuilder
+    private func editorContent(minimumHeight: CGFloat) -> some View {
+        if block.type == .code {
+            CodeBlockView(
+                block: block,
+                onChange: onChange,
+                minimumHeight: minimumHeight,
+                automaticallyFocus: true
+            )
+        } else {
+            RichParagraphView(
+                block: block,
+                onChange: onChange,
+                minimumEditorHeight: minimumHeight,
+                automaticallyFocusEditor: true
+            )
+        }
+    }
+
     private var canUndo: Bool {
         _ = undoStateVersion
         return paragraphUndoManager.canUndo
@@ -956,13 +959,22 @@ private struct CodeBlockView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var block: ContentBlock
     let onChange: () -> Void
+    let minimumHeight: CGFloat
+    let automaticallyFocus: Bool
     @State private var draftText: String
     @State private var pendingCommitTask: Task<Void, Never>?
     @FocusState private var isFocused: Bool
 
-    init(block: ContentBlock, onChange: @escaping () -> Void) {
+    init(
+        block: ContentBlock,
+        onChange: @escaping () -> Void,
+        minimumHeight: CGFloat = 140,
+        automaticallyFocus: Bool = false
+    ) {
         self.block = block
         self.onChange = onChange
+        self.minimumHeight = minimumHeight
+        self.automaticallyFocus = automaticallyFocus
         _draftText = State(initialValue: block.text)
     }
 
@@ -974,7 +986,7 @@ private struct CodeBlockView: View {
             .autocorrectionDisabled()
             .scrollContentBackground(.hidden)
             .padding(8)
-            .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .topLeading)
             .background(Color.secondary.opacity(0.09), in: RoundedRectangle(cornerRadius: 10))
             .overlay {
                 RoundedRectangle(cornerRadius: 10)
@@ -990,6 +1002,11 @@ private struct CodeBlockView: View {
                 if !isFocused { draftText = newValue }
             }
             .onDisappear { commitPendingText() }
+            .onAppear {
+                if automaticallyFocus {
+                    isFocused = true
+                }
+            }
             .accessibilityLabel("Code editor")
     }
 
@@ -1209,23 +1226,19 @@ private struct MediaBlockView: View {
                                 isMediaAvailable = $0
                             }
                         } else {
-                            Button {
-                                isShowingFullScreenPhoto = true
-                            } label: {
-                                PhotoAssetView(reference: reference) {
-                                    isMediaAvailable = $0
-                                }
-                                    .frame(
-                                        width: geometry.size.width,
-                                        height: geometry.size.height
-                                    )
+                            PhotoAssetView(reference: reference) {
+                                isMediaAvailable = $0
                             }
                             .frame(
                                 width: geometry.size.width,
                                 height: geometry.size.height
                             )
-                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                isShowingFullScreenPhoto = true
+                            }
                             .accessibilityLabel("View photo full screen")
+                            .accessibilityAddTraits(.isButton)
                             .overlay(alignment: .topTrailing) {
                                 if let linkURL = LinkAddress.normalizedURL(from: block.linkURLString) {
                                     Link(destination: linkURL) {
@@ -1458,16 +1471,20 @@ private struct GalleryBlockView: View {
             .frame(height: 240)
             .tabViewStyle(.page(indexDisplayMode: .always))
 
+            if !unavailableReferenceIDs.isEmpty {
+                let missingNumbers = block.orderedMediaReferences.enumerated().compactMap {
+                    unavailableReferenceIDs.contains($0.element.id) ? String($0.offset + 1) : nil
+                }
+                Label(
+                    "Gallery contains unavailable \(missingNumbers.count == 1 ? "photo" : "photos") \(missingNumbers.joined(separator: ", ")). Edit the gallery to change or remove \(missingNumbers.count == 1 ? "it" : "them").",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.red)
+            }
+
             if block.orderedMediaReferences.indices.contains(selectedPhotoIndex) {
                 let selectedReference = block.orderedMediaReferences[selectedPhotoIndex]
-                if unavailableReferenceIDs.contains(selectedReference.id) {
-                    Label(
-                        "Photo \(selectedPhotoIndex + 1) is unavailable. Change or remove it in Edit Gallery Photos.",
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
-                }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Photo \(selectedPhotoIndex + 1) caption")
                         .font(.caption2.weight(.semibold))
@@ -1489,12 +1506,36 @@ private struct GalleryBlockView: View {
         .onChange(of: block.orderedMediaReferences.count) { _, count in
             selectedPhotoIndex = min(selectedPhotoIndex, max(count - 1, 0))
         }
+        .task(id: block.orderedMediaReferences.map(\.localIdentifier).joined(separator: "|")) {
+            await refreshUnavailableReferences()
+        }
         .fullScreenCover(isPresented: $isShowingFullScreenGallery) {
             FullScreenGalleryView(
                 references: block.orderedMediaReferences,
                 initialIndex: fullScreenPhotoIndex
             )
         }
+    }
+
+    @MainActor
+    private func refreshUnavailableReferences() async {
+        let references = block.orderedMediaReferences
+        guard await PhotoLibraryAccess.isAuthorized() else {
+            unavailableReferenceIDs = Set(references.map(\.id))
+            return
+        }
+
+        let identifiers = references.map(\.localIdentifier)
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
+        var availableIdentifiers: Set<String> = []
+        assets.enumerateObjects { asset, _, _ in
+            availableIdentifiers.insert(asset.localIdentifier)
+        }
+        unavailableReferenceIDs = Set(
+            references
+                .filter { !availableIdentifiers.contains($0.localIdentifier) }
+                .map(\.id)
+        )
     }
 }
 
