@@ -5,6 +5,7 @@ import SwiftUI
 enum MediaPickerMode: String, Identifiable {
     case photos
     case singlePhoto
+    case singleVideo
     case gallery
     case videos
 
@@ -29,8 +30,8 @@ struct MediaPickerView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var configuration = PHPickerConfiguration(photoLibrary: .shared())
-        configuration.selectionLimit = mode == .gallery ? 0 : (mode == .singlePhoto ? 1 : 20)
-        configuration.filter = mode == .videos ? .videos : .images
+        configuration.selectionLimit = mode == .gallery ? 0 : ([.singlePhoto, .singleVideo].contains(mode) ? 1 : 20)
+        configuration.filter = [.videos, .singleVideo].contains(mode) ? .videos : .images
         configuration.preferredAssetRepresentationMode = .current
 
         let picker = PHPickerViewController(configuration: configuration)

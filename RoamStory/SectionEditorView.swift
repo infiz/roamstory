@@ -18,7 +18,7 @@ struct SectionEditorView: View {
     @State private var blockPendingDeletion: ContentBlock?
     @State private var selectedInsertionIndex: Int?
     @State private var galleryBeingEdited: ContentBlock?
-    @State private var photoBeingChanged: ContentBlock?
+    @State private var mediaBeingChanged: ContentBlock?
     @State private var isChangingMapLocation = false
     @State private var photoLinkBeingEdited: ContentBlock?
     @State private var isExportingDocx = false
@@ -93,8 +93,8 @@ struct SectionEditorView: View {
                                 onDelete: { blockPendingDeletion = block },
                                 onEditGallery: { galleryBeingEdited = block },
                                 onChangePhoto: {
-                                    photoBeingChanged = block
-                                    mediaPickerMode = .singlePhoto
+                                    mediaBeingChanged = block
+                                    mediaPickerMode = block.type == .video ? .singleVideo : .singlePhoto
                                 },
                                 onChangeLocation: { isChangingMapLocation = true },
                                 onEditPhotoLink: { photoLinkBeingEdited = block },
@@ -127,13 +127,6 @@ struct SectionEditorView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .id(block.id)
-                    .swipeActions {
-                        Button(role: .destructive) {
-                            blockPendingDeletion = block
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
                     .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -301,8 +294,8 @@ struct SectionEditorView: View {
         }
         .sheet(item: $mediaPickerMode) { mode in
             MediaPickerView(mode: mode) { selections in
-                if mode == .singlePhoto {
-                    replacePhoto(with: selections)
+                if mode == .singlePhoto || mode == .singleVideo {
+                    replaceMedia(with: selections)
                 } else {
                     addMedia(selections, mode: mode)
                 }
@@ -532,10 +525,11 @@ struct SectionEditorView: View {
         }
     }
 
-    private func replacePhoto(with selections: [PickedMedia]) {
-        defer { photoBeingChanged = nil }
-        guard let block = photoBeingChanged,
-              let selection = selections.first(where: { $0.kind == .image }) else { return }
+    private func replaceMedia(with selections: [PickedMedia]) {
+        defer { mediaBeingChanged = nil }
+        guard let block = mediaBeingChanged else { return }
+        let expectedKind: MediaKind = block.type == .video ? .video : .image
+        guard let selection = selections.first(where: { $0.kind == expectedKind }) else { return }
         markBlockChanged(block.id)
 
         for reference in block.mediaReferences {
@@ -543,7 +537,7 @@ struct SectionEditorView: View {
         }
         let replacement = MediaReference(
             localIdentifier: selection.localIdentifier,
-            kind: .image,
+            kind: expectedKind,
             originalFilename: selection.originalFilename
         )
         modelContext.insert(replacement)
@@ -697,10 +691,15 @@ private struct BlockTypeHeader: View {
                         Label("Edit Gallery Photos", systemImage: "photo.stack")
                     }
                 }
-                if type == .photo {
+                if type == .photo || type == .video {
                     Button(action: onChangePhoto) {
-                        Label("Change Photo", systemImage: "arrow.triangle.2.circlepath")
+                        Label(
+                            type == .video ? "Change Video" : "Change Photo",
+                            systemImage: "arrow.triangle.2.circlepath"
+                        )
                     }
+                }
+                if type == .photo {
                     Button(action: onEditPhotoLink) {
                         Label(hasLink ? "Edit Photo Link" : "Add Photo Link", systemImage: "link")
                     }
@@ -715,7 +714,7 @@ private struct BlockTypeHeader: View {
                         Label("Change Location", systemImage: "map")
                     }
                 }
-                if type == .gallery || type == .photo || type == .map {
+                if type == .gallery || type == .photo || type == .video || type == .map {
                     Divider()
                 }
                 Button(action: onMoveUp) {
@@ -1198,6 +1197,7 @@ private struct MediaBlockView: View {
     @Bindable var block: ContentBlock
     let onChange: () -> Void
     @State private var isShowingFullScreenPhoto = false
+    @State private var isMediaAvailable = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1205,12 +1205,16 @@ private struct MediaBlockView: View {
                 GeometryReader { geometry in
                     Group {
                         if block.type == .video {
-                            VideoAssetView(reference: reference)
+                            VideoAssetView(reference: reference) {
+                                isMediaAvailable = $0
+                            }
                         } else {
                             Button {
                                 isShowingFullScreenPhoto = true
                             } label: {
-                                PhotoAssetView(reference: reference)
+                                PhotoAssetView(reference: reference) {
+                                    isMediaAvailable = $0
+                                }
                                     .frame(
                                         width: geometry.size.width,
                                         height: geometry.size.height
@@ -1246,6 +1250,18 @@ private struct MediaBlockView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             } else {
                 MissingMediaView()
+            }
+
+            if !isMediaAvailable || block.mediaReferences.isEmpty {
+                Label(
+                    "\(block.type == .video ? "Video" : "Photo") unavailable. Change it or delete this block.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.red)
+                .accessibilityLabel(
+                    "Warning: \(block.type == .video ? "video" : "photo") unavailable. Change it or delete this block."
+                )
             }
 
             VStack(alignment: .leading, spacing: 3) {
@@ -1402,6 +1418,7 @@ private struct GalleryBlockView: View {
     @State private var fullScreenPhotoIndex = 0
     @State private var isShowingFullScreenGallery = false
     @State private var selectedPhotoIndex = 0
+    @State private var unavailableReferenceIDs: Set<UUID> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1420,7 +1437,16 @@ private struct GalleryBlockView: View {
                         fullScreenPhotoIndex = index
                         isShowingFullScreenGallery = true
                     } label: {
-                        PhotoAssetView(reference: reference, fitEntireImage: true)
+                        PhotoAssetView(
+                            reference: reference,
+                            fitEntireImage: true
+                        ) { isAvailable in
+                            if isAvailable {
+                                unavailableReferenceIDs.remove(reference.id)
+                            } else {
+                                unavailableReferenceIDs.insert(reference.id)
+                            }
+                        }
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .padding(.horizontal, 2)
                     }
@@ -1434,6 +1460,14 @@ private struct GalleryBlockView: View {
 
             if block.orderedMediaReferences.indices.contains(selectedPhotoIndex) {
                 let selectedReference = block.orderedMediaReferences[selectedPhotoIndex]
+                if unavailableReferenceIDs.contains(selectedReference.id) {
+                    Label(
+                        "Photo \(selectedPhotoIndex + 1) is unavailable. Change or remove it in Edit Gallery Photos.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+                }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Photo \(selectedPhotoIndex + 1) caption")
                         .font(.caption2.weight(.semibold))
@@ -1542,6 +1576,8 @@ private struct GalleryEditorView: View {
 
     @State private var isAddingPhotos = false
     @State private var referencePendingDeletion: MediaReference?
+    @State private var referenceBeingChanged: MediaReference?
+    @State private var unavailableReferenceIDs: Set<UUID> = []
 
     var body: some View {
         NavigationStack {
@@ -1556,12 +1592,26 @@ private struct GalleryEditorView: View {
                 } else {
                     ForEach(block.orderedMediaReferences) { reference in
                         HStack(spacing: 12) {
-                            PhotoAssetView(reference: reference)
+                            PhotoAssetView(reference: reference) { isAvailable in
+                                if isAvailable {
+                                    unavailableReferenceIDs.remove(reference.id)
+                                } else {
+                                    unavailableReferenceIDs.insert(reference.id)
+                                }
+                            }
                                 .frame(width: 88, height: 66)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(reference.originalFilename.isEmpty ? "Photo" : reference.originalFilename)
                                     .lineLimit(1)
+                                if unavailableReferenceIDs.contains(reference.id) {
+                                    Label(
+                                        "Photo unavailable",
+                                        systemImage: "exclamationmark.triangle.fill"
+                                    )
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.red)
+                                }
                                 BatchedTextField(
                                     "Photo caption (optional)",
                                     text: Bindable(reference).caption,
@@ -1581,6 +1631,11 @@ private struct GalleryEditorView: View {
                                 .accessibilityLabel("Move photo")
                                 .accessibilityHint("Drag to another photo to reorder")
                             Menu {
+                                Button {
+                                    referenceBeingChanged = reference
+                                } label: {
+                                    Label("Change Photo", systemImage: "arrow.triangle.2.circlepath")
+                                }
                                 Button(role: .destructive) {
                                     referencePendingDeletion = reference
                                 } label: {
@@ -1592,13 +1647,6 @@ private struct GalleryEditorView: View {
                                     .padding(.horizontal, 4)
                             }
                             .accessibilityLabel("Photo actions")
-                        }
-                        .swipeActions {
-                            Button(role: .destructive) {
-                                referencePendingDeletion = reference
-                            } label: {
-                                Label("Remove", systemImage: "trash")
-                            }
                         }
                         .dropDestination(for: String.self) { items, _ in
                             guard let sourceValue = items.first,
@@ -1624,6 +1672,11 @@ private struct GalleryEditorView: View {
             }
             .sheet(isPresented: $isAddingPhotos) {
                 MediaPickerView(mode: .gallery, onComplete: addPhotos)
+            }
+            .sheet(item: $referenceBeingChanged) { reference in
+                MediaPickerView(mode: .singlePhoto) { selections in
+                    replacePhoto(reference, with: selections)
+                }
             }
             .alert(
                 "Remove Photo from Gallery?",
@@ -1660,6 +1713,15 @@ private struct GalleryEditorView: View {
             nextIndex += 1
         }
         onChange()
+    }
+
+    private func replacePhoto(_ reference: MediaReference, with selections: [PickedMedia]) {
+        guard let selection = selections.first(where: { $0.kind == .image }) else { return }
+        reference.localIdentifier = selection.localIdentifier
+        reference.originalFilename = selection.originalFilename
+        unavailableReferenceIDs.remove(reference.id)
+        onChange()
+        referenceBeingChanged = nil
     }
 
     @discardableResult

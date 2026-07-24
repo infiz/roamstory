@@ -29,6 +29,7 @@ struct PhotoAssetView: View {
     var showVideoBadge = false
     var fitEntireImage = false
     var backgroundColor: Color?
+    var onAvailabilityChange: ((Bool) -> Void)?
 
     @State private var image: UIImage?
     @State private var isMissing = false
@@ -48,11 +49,7 @@ struct PhotoAssetView: View {
                         .clipped()
                 }
             } else if isMissing {
-                ContentUnavailableView(
-                    "Media Unavailable",
-                    systemImage: "photo.badge.exclamationmark",
-                    description: Text("Allow Photos access or relink this item.")
-                )
+                MissingPhotoReferenceView()
             } else {
                 ProgressView("Loading from Photos…")
             }
@@ -78,14 +75,16 @@ struct PhotoAssetView: View {
     @MainActor
     private func loadImage() async {
         let cacheKey = reference.localIdentifier as NSString
-        if let cachedImage = PhotoThumbnailCache.images.object(forKey: cacheKey) {
-            image = cachedImage
-            isMissing = false
+        guard await PhotoLibraryAccess.isAuthorized() else {
+            isMissing = true
+            onAvailabilityChange?(false)
             return
         }
 
-        guard await PhotoLibraryAccess.isAuthorized() else {
-            isMissing = true
+        if let cachedImage = PhotoThumbnailCache.images.object(forKey: cacheKey) {
+            image = cachedImage
+            isMissing = false
+            onAvailabilityChange?(true)
             return
         }
 
@@ -95,6 +94,7 @@ struct PhotoAssetView: View {
         )
         guard let asset = result.firstObject else {
             isMissing = true
+            onAvailabilityChange?(false)
             return
         }
 
@@ -123,11 +123,13 @@ struct PhotoAssetView: View {
             PhotoThumbnailCache.images.setObject(image, forKey: cacheKey, cost: cost)
         }
         isMissing = image == nil
+        onAvailabilityChange?(image != nil)
     }
 }
 
 struct VideoAssetView: View {
     let reference: MediaReference
+    var onAvailabilityChange: ((Bool) -> Void)?
 
     @State private var player: AVPlayer?
     @State private var isMissing = false
@@ -170,7 +172,11 @@ struct VideoAssetView: View {
                         await loadVideoAndPlay()
                     }
                 } label: {
-                    PhotoAssetView(reference: reference, showVideoBadge: true)
+                    PhotoAssetView(
+                        reference: reference,
+                        showVideoBadge: true,
+                        onAvailabilityChange: onAvailabilityChange
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Play video")
@@ -200,6 +206,7 @@ struct VideoAssetView: View {
 
         guard await PhotoLibraryAccess.isAuthorized() else {
             isMissing = true
+            onAvailabilityChange?(false)
             return
         }
 
@@ -209,6 +216,7 @@ struct VideoAssetView: View {
         )
         guard let photoAsset = result.firstObject, photoAsset.mediaType == .video else {
             isMissing = true
+            onAvailabilityChange?(false)
             return
         }
 
@@ -227,8 +235,10 @@ struct VideoAssetView: View {
 
         guard let avAsset else {
             isMissing = true
+            onAvailabilityChange?(false)
             return
         }
+        onAvailabilityChange?(true)
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
 
@@ -236,5 +246,24 @@ struct VideoAssetView: View {
         preparedPlayer.isMuted = isMuted
         player = preparedPlayer
         preparedPlayer.play()
+    }
+}
+
+private struct MissingPhotoReferenceView: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title)
+                .foregroundStyle(.red)
+            Text("Media Unavailable")
+                .font(.headline)
+            Text("Allow Photos access or replace this item.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Warning: media unavailable. Allow Photos access or replace this item.")
     }
 }
