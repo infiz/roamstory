@@ -279,8 +279,6 @@ struct HtmlExporter {
         case .quote:
             let title = block.title.isEmpty ? "" : "<h3>\(htmlEscape(block.title))</h3>"
             return "<div class=\"block\">\(title)<blockquote>\(richTextHTML(block))</blockquote></div>"
-        case .code:
-            return "<div class=\"block\"><pre><code>\(htmlEscape(block.text))</code></pre></div>"
         case .divider:
             return "<div class=\"block\"><hr></div>"
         case .photo:

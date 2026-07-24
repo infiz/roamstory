@@ -373,11 +373,12 @@ final class TripSorterTests: XCTestCase {
         XCTAssertEqual(sectionCount, 1)
     }
 
-    func testCodeBlockStoresSourceText() {
+    func testLegacyCodeBlockIsReadAsParagraphWithoutLosingText() {
         let source = "func greet() {\n    print(\"Hello\")\n}"
-        let block = ContentBlock(type: .code, text: source)
+        let block = ContentBlock(type: .paragraph, text: source)
+        block.typeRawValue = "code"
 
-        XCTAssertEqual(block.type, .code)
+        XCTAssertEqual(block.type, .paragraph)
         XCTAssertEqual(block.text, source)
     }
 
