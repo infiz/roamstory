@@ -74,7 +74,7 @@ struct PhotoAssetView: View {
 
     @MainActor
     private func loadImage() async {
-        let cacheKey = reference.localIdentifier as NSString
+        let cacheKey = "\(reference.localIdentifier)|\(fitEntireImage ? "fit" : "fill")" as NSString
         guard await PhotoLibraryAccess.isAuthorized() else {
             isMissing = true
             onAvailabilityChange?(false)
@@ -107,8 +107,8 @@ struct PhotoAssetView: View {
             var resumed = false
             PHImageManager.default().requestImage(
                 for: asset,
-                targetSize: CGSize(width: 1200, height: 800),
-                contentMode: .aspectFill,
+                targetSize: CGSize(width: 1200, height: 1200),
+                contentMode: fitEntireImage ? .aspectFit : .aspectFill,
                 options: options
             ) { requestedImage, info in
                 let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
