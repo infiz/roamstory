@@ -1428,7 +1428,11 @@ private struct MediaBlockView: View {
                                 isMediaAvailable = $0
                             }
                         } else {
-                            PhotoAssetView(reference: reference) {
+                            PhotoAssetView(
+                                reference: reference,
+                                fitEntireImage: true,
+                                backgroundColor: .black
+                            ) {
                                 isMediaAvailable = $0
                             }
                             .frame(
@@ -1654,7 +1658,8 @@ private struct GalleryBlockView: View {
                     } label: {
                         PhotoAssetView(
                             reference: reference,
-                            fitEntireImage: true
+                            fitEntireImage: true,
+                            backgroundColor: .black
                         ) { isAvailable in
                             if isAvailable {
                                 unavailableReferenceIDs.remove(reference.id)
