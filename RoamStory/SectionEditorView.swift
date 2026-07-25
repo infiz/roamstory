@@ -1651,7 +1651,14 @@ private struct GalleryBlockView: View {
     @State private var fullScreenPhotoIndex = 0
     @State private var isShowingFullScreenGallery = false
     @State private var selectedPhotoIndex = 0
+    @State private var galleryPageIndex = 1
     @State private var unavailableReferenceIDs: Set<UUID> = []
+    @State private var isAutoPlaying = false
+    @State private var automaticTransition: GalleryAutomaticTransition?
+    @State private var isAutomaticTransitionVisible = false
+    @State private var hasAdvancedAutomaticTransition = false
+    @State private var automaticTransitionReadyIndices: Set<Int> = []
+    @State private var automaticCaptionIndex: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1665,34 +1672,84 @@ private struct GalleryBlockView: View {
             .textInputAutocapitalization(.sentences)
 
             GeometryReader { geometry in
-                TabView(selection: $selectedPhotoIndex) {
-                    ForEach(Array(block.orderedMediaReferences.enumerated()), id: \.element.id) { index, reference in
-                        Button {
-                            fullScreenPhotoIndex = index
-                            isShowingFullScreenGallery = true
-                        } label: {
-                            PhotoAssetView(
-                                reference: reference,
-                                fitEntireImage: true,
-                                backgroundColor: .black
-                            ) { isAvailable in
-                                if isAvailable {
-                                    unavailableReferenceIDs.remove(reference.id)
-                                } else {
-                                    unavailableReferenceIDs.insert(reference.id)
+                ZStack(alignment: .topTrailing) {
+                    TabView(selection: $galleryPageIndex) {
+                        ForEach(
+                            Array(loopingGalleryIndices(count: block.orderedMediaReferences.count).enumerated()),
+                            id: \.offset
+                        ) { pageIndex, photoIndex in
+                            let reference = block.orderedMediaReferences[photoIndex]
+                            Button {
+                                pauseSectionSlideshow()
+                                fullScreenPhotoIndex = photoIndex
+                                isShowingFullScreenGallery = true
+                            } label: {
+                                PhotoAssetView(
+                                    reference: reference,
+                                    fitEntireImage: true,
+                                    backgroundColor: .black
+                                ) { isAvailable in
+                                    if isAvailable {
+                                        unavailableReferenceIDs.remove(reference.id)
+                                    } else {
+                                        unavailableReferenceIDs.insert(reference.id)
+                                    }
                                 }
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
                             }
+                            .buttonStyle(.plain)
                             .frame(width: geometry.size.width, height: geometry.size.height)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .tag(pageIndex)
+                            .accessibilityLabel("View gallery photo \(photoIndex + 1) full screen")
                         }
-                        .buttonStyle(.plain)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .tag(index)
-                        .accessibilityLabel("View gallery photo \(index + 1) full screen")
                     }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+
+                    if let automaticTransition {
+                        GalleryAutomaticTransitionView(
+                            references: block.orderedMediaReferences,
+                            transition: automaticTransition,
+                            hasAdvanced: hasAdvancedAutomaticTransition,
+                            onPhotoReady: { automaticTransitionReadyIndices.insert($0) }
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .compositingGroup()
+                        .opacity(isAutomaticTransitionVisible ? 1 : 0)
+                        .allowsHitTesting(false)
+                    }
+
+                    VStack {
+                        Spacer()
+                        GalleryPageIndicator(
+                            count: block.orderedMediaReferences.count,
+                            selectedIndex: captionPhotoIndex
+                        )
+                        .padding(.bottom, 8)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .allowsHitTesting(false)
+
+                    Button {
+                        isAutoPlaying.toggle()
+                    } label: {
+                        Image(systemName: isAutoPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(.black.opacity(0.68), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(10)
+                    .disabled(block.orderedMediaReferences.count <= 1)
+                    .opacity(block.orderedMediaReferences.count > 1 ? 1 : 0)
+                    .accessibilityLabel(
+                        isAutoPlaying
+                            ? "Pause automatic slideshow"
+                            : "Play automatic slideshow continuously"
+                    )
                 }
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .tabViewStyle(.page(indexDisplayMode: .always))
             }
             .frame(height: 240)
 
@@ -1708,10 +1765,10 @@ private struct GalleryBlockView: View {
                 .foregroundStyle(.red)
             }
 
-            if block.orderedMediaReferences.indices.contains(selectedPhotoIndex) {
-                let selectedReference = block.orderedMediaReferences[selectedPhotoIndex]
+            if block.orderedMediaReferences.indices.contains(captionPhotoIndex) {
+                let selectedReference = block.orderedMediaReferences[captionPhotoIndex]
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Photo \(selectedPhotoIndex + 1) caption")
+                    Text("Photo \(captionPhotoIndex + 1) caption")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                     BatchedTextField(
@@ -1730,6 +1787,86 @@ private struct GalleryBlockView: View {
         .padding(.vertical, 8)
         .onChange(of: block.orderedMediaReferences.count) { _, count in
             selectedPhotoIndex = min(selectedPhotoIndex, max(count - 1, 0))
+            galleryPageIndex = count > 1 ? selectedPhotoIndex + 1 : selectedPhotoIndex
+            if count <= 1 {
+                isAutoPlaying = false
+            }
+        }
+        .onChange(of: galleryPageIndex) { _, pageIndex in
+            updateSectionGallerySelection(for: pageIndex)
+        }
+        .onDisappear {
+            pauseSectionSlideshow()
+        }
+        .task(id: "\(isAutoPlaying)-\(selectedPhotoIndex)") {
+            guard isAutoPlaying, block.orderedMediaReferences.count > 1 else { return }
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return
+            }
+            guard isAutoPlaying, !Task.isCancelled else { return }
+            let count = block.orderedMediaReferences.count
+            automaticTransition = GalleryAutomaticTransition(
+                fromIndex: selectedPhotoIndex,
+                toIndex: (selectedPhotoIndex + 1) % count
+            )
+            isAutomaticTransitionVisible = false
+            hasAdvancedAutomaticTransition = false
+            automaticTransitionReadyIndices = []
+            while automaticTransitionReadyIndices.count < 2 {
+                do {
+                    try await Task.sleep(for: .milliseconds(20))
+                } catch {
+                    automaticTransition = nil
+                    return
+                }
+            }
+            var revealTransaction = Transaction()
+            revealTransaction.disablesAnimations = true
+            withTransaction(revealTransaction) {
+                isAutomaticTransitionVisible = true
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(34))
+            } catch {
+                automaticTransition = nil
+                return
+            }
+            automaticCaptionIndex = automaticTransition?.toIndex
+            withAnimation(.smooth(duration: gallerySectionTransitionDuration)) {
+                hasAdvancedAutomaticTransition = true
+            }
+            do {
+                try await Task.sleep(for: .seconds(gallerySectionTransitionDuration))
+            } catch {
+                automaticTransition = nil
+                return
+            }
+            let completedTransition = automaticTransition
+            Task { @MainActor in
+                guard isAutoPlaying else {
+                    clearSectionSlideshowTransition()
+                    return
+                }
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    galleryPageIndex += 1
+                }
+
+                // Keep the already-loaded destination photo over the pager while
+                // its newly selected page gets a chance to render from cache.
+                try? await Task.sleep(for: .milliseconds(100))
+                guard automaticTransition?.toIndex == completedTransition?.toIndex else {
+                    return
+                }
+                automaticTransition = nil
+                isAutomaticTransitionVisible = false
+                hasAdvancedAutomaticTransition = false
+                automaticTransitionReadyIndices = []
+                automaticCaptionIndex = nil
+            }
         }
         .task(id: block.orderedMediaReferences.map(\.localIdentifier).joined(separator: "|")) {
             await refreshUnavailableReferences()
@@ -1739,6 +1876,44 @@ private struct GalleryBlockView: View {
                 references: block.orderedMediaReferences,
                 initialIndex: fullScreenPhotoIndex
             )
+        }
+    }
+
+    private var captionPhotoIndex: Int {
+        automaticCaptionIndex ?? selectedPhotoIndex
+    }
+
+    private func pauseSectionSlideshow() {
+        isAutoPlaying = false
+        clearSectionSlideshowTransition()
+    }
+
+    private func clearSectionSlideshowTransition() {
+        automaticTransition = nil
+        isAutomaticTransitionVisible = false
+        hasAdvancedAutomaticTransition = false
+        automaticTransitionReadyIndices = []
+        automaticCaptionIndex = nil
+    }
+
+    private func updateSectionGallerySelection(for pageIndex: Int) {
+        let count = block.orderedMediaReferences.count
+        guard count > 1 else {
+            selectedPhotoIndex = max(min(pageIndex, count - 1), 0)
+            return
+        }
+
+        selectedPhotoIndex = loopingPhotoIndex(for: pageIndex, count: count)
+        guard pageIndex == 0 || pageIndex == count + 1 else { return }
+        let normalizedPageIndex = pageIndex == 0 ? count : 1
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard galleryPageIndex == pageIndex else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                galleryPageIndex = normalizedPageIndex
+            }
         }
     }
 
@@ -1768,14 +1943,26 @@ private struct FullScreenGalleryView: View {
     @Environment(\.dismiss) private var dismiss
     let references: [MediaReference]
     @State private var selectedIndex: Int
+    @State private var galleryPageIndex: Int
     @State private var metadata: PhotoAssetMetadata?
     @State private var metadataByIdentifier: [String: PhotoAssetMetadata] = [:]
     @State private var isInfoVisible = false
+    @State private var isAutoPlaying = false
+    @State private var automaticTransition: GalleryAutomaticTransition?
+    @State private var isAutomaticTransitionVisible = false
+    @State private var hasAdvancedAutomaticTransition = false
+    @State private var automaticTransitionReadyIndices: Set<Int> = []
+    @State private var automaticCaptionIndex: Int?
 
     init(references: [MediaReference], initialIndex: Int) {
         self.references = references
         _selectedIndex = State(
             initialValue: min(max(initialIndex, 0), max(references.count - 1, 0))
+        )
+        _galleryPageIndex = State(
+            initialValue: references.count > 1
+                ? min(max(initialIndex, 0), max(references.count - 1, 0)) + 1
+                : 0
         )
     }
 
@@ -1786,6 +1973,8 @@ private struct FullScreenGalleryView: View {
                 VStack(spacing: 0) {
                     FullScreenPersistentControls(
                         countText: "\(selectedIndex + 1) of \(references.count)",
+                        autoPlay: $isAutoPlaying,
+                        isAutoPlayAvailable: references.count > 1,
                         closeAccessibilityLabel: "Close full-screen gallery",
                         onClose: { dismiss() }
                     )
@@ -1821,6 +2010,9 @@ private struct FullScreenGalleryView: View {
             .animation(.easeInOut(duration: 0.22), value: isInfoVisible)
         }
         .statusBarHidden()
+        .onChange(of: galleryPageIndex) { _, pageIndex in
+            updateFullScreenGallerySelection(for: pageIndex)
+        }
         .task(id: selectedReferenceID) {
             guard references.indices.contains(selectedIndex) else {
                 metadata = nil
@@ -1841,6 +2033,82 @@ private struct FullScreenGalleryView: View {
                 metadataByIdentifier[identifier] = loadedMetadata
             }
         }
+        .task(id: "\(isAutoPlaying)-\(selectedIndex)") {
+            guard isAutoPlaying, references.count > 1 else { return }
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return
+            }
+            guard isAutoPlaying, !Task.isCancelled else { return }
+            automaticTransition = GalleryAutomaticTransition(
+                fromIndex: selectedIndex,
+                toIndex: (selectedIndex + 1) % references.count
+            )
+            isAutomaticTransitionVisible = false
+            hasAdvancedAutomaticTransition = false
+            automaticTransitionReadyIndices = []
+            while automaticTransitionReadyIndices.count < 2 {
+                do {
+                    try await Task.sleep(for: .milliseconds(20))
+                } catch {
+                    automaticTransition = nil
+                    return
+                }
+            }
+            var revealTransaction = Transaction()
+            revealTransaction.disablesAnimations = true
+            withTransaction(revealTransaction) {
+                isAutomaticTransitionVisible = true
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(34))
+            } catch {
+                automaticTransition = nil
+                return
+            }
+            automaticCaptionIndex = automaticTransition?.toIndex
+            withAnimation(.easeInOut(duration: galleryAutomaticTransitionDuration)) {
+                hasAdvancedAutomaticTransition = true
+            }
+            do {
+                try await Task.sleep(for: .seconds(galleryAutomaticTransitionDuration))
+            } catch {
+                automaticTransition = nil
+                return
+            }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                galleryPageIndex += 1
+            }
+            automaticTransition = nil
+            isAutomaticTransitionVisible = false
+            hasAdvancedAutomaticTransition = false
+            automaticTransitionReadyIndices = []
+            automaticCaptionIndex = nil
+        }
+    }
+
+    private func updateFullScreenGallerySelection(for pageIndex: Int) {
+        let count = references.count
+        guard count > 1 else {
+            selectedIndex = max(min(pageIndex, count - 1), 0)
+            return
+        }
+
+        selectedIndex = loopingPhotoIndex(for: pageIndex, count: count)
+        guard pageIndex == 0 || pageIndex == count + 1 else { return }
+        let normalizedPageIndex = pageIndex == 0 ? count : 1
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard galleryPageIndex == pageIndex else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                galleryPageIndex = normalizedPageIndex
+            }
+        }
     }
 
     private var selectedReferenceID: String {
@@ -1850,21 +2118,119 @@ private struct FullScreenGalleryView: View {
     }
 
     private var selectedCaption: String {
-        references.indices.contains(selectedIndex) ? references[selectedIndex].caption : ""
+        let captionIndex = automaticCaptionIndex ?? selectedIndex
+        return references.indices.contains(captionIndex) ? references[captionIndex].caption : ""
     }
 
     private var galleryPhotos: some View {
-        TabView(selection: $selectedIndex) {
-            ForEach(Array(references.enumerated()), id: \.element.id) { index, reference in
-                PhotoAssetView(
-                    reference: reference,
-                    fitEntireImage: true,
-                    backgroundColor: .black
+        ZStack {
+            TabView(selection: $galleryPageIndex) {
+                ForEach(
+                    Array(loopingGalleryIndices(count: references.count).enumerated()),
+                    id: \.offset
+                ) { pageIndex, photoIndex in
+                    let reference = references[photoIndex]
+                    PhotoAssetView(
+                        reference: reference,
+                        fitEntireImage: true,
+                        backgroundColor: .black
+                    )
+                    .tag(pageIndex)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            if let automaticTransition {
+                GalleryAutomaticTransitionView(
+                    references: references,
+                    transition: automaticTransition,
+                    hasAdvanced: hasAdvancedAutomaticTransition,
+                    onPhotoReady: { automaticTransitionReadyIndices.insert($0) }
                 )
-                .tag(index)
+                .opacity(isAutomaticTransitionVisible ? 1 : 0)
+                .allowsHitTesting(false)
             }
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
+    }
+}
+
+private struct GalleryAutomaticTransition {
+    let fromIndex: Int
+    let toIndex: Int
+}
+
+private let gallerySectionTransitionDuration = 0.7
+private let galleryAutomaticTransitionDuration = 0.55
+
+private struct GalleryAutomaticTransitionView: View {
+    let references: [MediaReference]
+    let transition: GalleryAutomaticTransition
+    let hasAdvanced: Bool
+    let onPhotoReady: (Int) -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                transitionPhoto(
+                    reference: references[transition.fromIndex],
+                    index: transition.fromIndex
+                )
+                    .opacity(hasAdvanced ? 0.82 : 1)
+                transitionPhoto(
+                    reference: references[transition.toIndex],
+                    index: transition.toIndex
+                )
+                    .opacity(hasAdvanced ? 1 : 0.82)
+            }
+            .frame(width: geometry.size.width * 2, height: geometry.size.height)
+            .offset(x: hasAdvanced ? -geometry.size.width : 0)
+            .clipped()
+        }
+    }
+
+    private func transitionPhoto(reference: MediaReference, index: Int) -> some View {
+        GeometryReader { geometry in
+            PhotoAssetView(
+                reference: reference,
+                fitEntireImage: true,
+                backgroundColor: .black,
+                onAvailabilityChange: { _ in onPhotoReady(index) }
+            )
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+    }
+}
+
+private func loopingGalleryIndices(count: Int) -> [Int] {
+    guard count > 1 else { return count == 1 ? [0] : [] }
+    return [count - 1] + Array(0..<count) + [0]
+}
+
+private func loopingPhotoIndex(for pageIndex: Int, count: Int) -> Int {
+    if pageIndex == 0 {
+        return count - 1
+    }
+    if pageIndex == count + 1 {
+        return 0
+    }
+    return pageIndex - 1
+}
+
+private struct GalleryPageIndicator: View {
+    let count: Int
+    let selectedIndex: Int
+
+    var body: some View {
+        if count > 1 {
+            HStack(spacing: 6) {
+                ForEach(0..<count, id: \.self) { index in
+                    Circle()
+                        .fill(.white.opacity(index == selectedIndex ? 1 : 0.5))
+                        .frame(width: 7, height: 7)
+                        .shadow(color: .black.opacity(0.55), radius: 1)
+                }
+            }
+        }
     }
 }
 
@@ -1998,6 +2364,8 @@ private struct FullScreenPhotoBottomPanel: View {
 
 private struct FullScreenPersistentControls: View {
     let countText: String?
+    var autoPlay: Binding<Bool>? = nil
+    var isAutoPlayAvailable = false
     let closeAccessibilityLabel: String
     let onClose: () -> Void
 
@@ -2009,6 +2377,23 @@ private struct FullScreenPersistentControls: View {
                     .foregroundStyle(.white)
             }
             Spacer()
+            if let autoPlay {
+                Button {
+                    autoPlay.wrappedValue.toggle()
+                } label: {
+                    Image(systemName: autoPlay.wrappedValue ? "pause.fill" : "play.fill")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(.white.opacity(0.14), in: Circle())
+                }
+                .disabled(!isAutoPlayAvailable)
+                .accessibilityLabel(
+                    autoPlay.wrappedValue
+                        ? "Pause automatic slideshow"
+                        : "Play automatic slideshow continuously"
+                )
+            }
             FullScreenCloseButton(
                 accessibilityLabel: closeAccessibilityLabel,
                 action: onClose

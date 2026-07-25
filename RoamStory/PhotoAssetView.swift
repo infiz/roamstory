@@ -186,6 +186,10 @@ private enum PhotoThumbnailCache {
         cache.totalCostLimit = 64 * 1024 * 1024
         return cache
     }()
+
+    static func key(for reference: MediaReference, fitEntireImage: Bool) -> NSString {
+        "\(reference.localIdentifier)|\(fitEntireImage ? "fit" : "fill")" as NSString
+    }
 }
 
 struct PhotoAssetView: View {
@@ -197,6 +201,28 @@ struct PhotoAssetView: View {
 
     @State private var image: UIImage?
     @State private var isMissing = false
+
+    init(
+        reference: MediaReference,
+        showVideoBadge: Bool = false,
+        fitEntireImage: Bool = false,
+        backgroundColor: Color? = nil,
+        onAvailabilityChange: ((Bool) -> Void)? = nil
+    ) {
+        self.reference = reference
+        self.showVideoBadge = showVideoBadge
+        self.fitEntireImage = fitEntireImage
+        self.backgroundColor = backgroundColor
+        self.onAvailabilityChange = onAvailabilityChange
+        _image = State(
+            initialValue: PhotoThumbnailCache.images.object(
+                forKey: PhotoThumbnailCache.key(
+                    for: reference,
+                    fitEntireImage: fitEntireImage
+                )
+            )
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -255,17 +281,20 @@ struct PhotoAssetView: View {
 
     @MainActor
     private func loadImage() async {
-        let cacheKey = "\(reference.localIdentifier)|\(fitEntireImage ? "fit" : "fill")" as NSString
-        guard await PhotoLibraryAccess.isAuthorized() else {
-            isMissing = true
-            onAvailabilityChange?(false)
-            return
-        }
-
+        let cacheKey = PhotoThumbnailCache.key(
+            for: reference,
+            fitEntireImage: fitEntireImage
+        )
         if let cachedImage = PhotoThumbnailCache.images.object(forKey: cacheKey) {
             image = cachedImage
             isMissing = false
             onAvailabilityChange?(true)
+            return
+        }
+
+        guard await PhotoLibraryAccess.isAuthorized() else {
+            isMissing = true
+            onAvailabilityChange?(false)
             return
         }
 
