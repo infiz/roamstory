@@ -1513,48 +1513,62 @@ private struct FullScreenSinglePhotoView: View {
     @Environment(\.dismiss) private var dismiss
     let reference: MediaReference
     let caption: String
+    @State private var metadata: PhotoAssetMetadata?
+    @State private var isInfoVisible = false
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            PhotoAssetView(
-                reference: reference,
-                fitEntireImage: true,
-                backgroundColor: .black
-            )
-            .ignoresSafeArea()
-
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.body.weight(.bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(.black.opacity(0.55), in: Circle())
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    FullScreenPersistentControls(
+                        countText: nil,
+                        closeAccessibilityLabel: "Close full-screen photo",
+                        onClose: { dismiss() }
+                    )
+                    if geometry.size.width > geometry.size.height {
+                        HStack(spacing: 0) {
+                            fullScreenPhoto
+                            CollapsibleLandscapePhotoPanel(
+                                isVisible: $isInfoVisible,
+                                metadata: metadata
+                            )
+                            .frame(width: isInfoVisible
+                                ? landscapeSidebarWidth(for: geometry.size.width)
+                                : collapsedPanelThickness
+                            )
+                        }
+                        FullScreenPersistentCaption(caption: caption)
+                    } else {
+                        VStack(spacing: 0) {
+                            fullScreenPhoto
+                            FullScreenPersistentCaption(caption: caption)
+                            CollapsiblePortraitPhotoPanel(
+                                isVisible: $isInfoVisible,
+                                metadata: metadata
+                            )
+                            .frame(height: isInfoVisible
+                                ? portraitPanelHeight(for: geometry.size.height)
+                                : collapsedPanelThickness
+                            )
+                        }
                     }
-                    .accessibilityLabel("Close full-screen photo")
-                }
-                .padding()
-                Spacer()
-                if !caption.isEmpty {
-                    Text(caption)
-                        .font(.body)
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal)
-                        .padding(.bottom, 24)
-                        .accessibilityLabel("Photo caption")
                 }
             }
+            .animation(.easeInOut(duration: 0.22), value: isInfoVisible)
         }
         .statusBarHidden()
+        .task(id: reference.localIdentifier) {
+            metadata = await PhotoAssetMetadataLoader.load(reference: reference)
+        }
+    }
+
+    private var fullScreenPhoto: some View {
+        PhotoAssetView(
+            reference: reference,
+            fitEntireImage: true,
+            backgroundColor: .black
+        )
     }
 }
 
@@ -1650,33 +1664,37 @@ private struct GalleryBlockView: View {
             .font(.headline)
             .textInputAutocapitalization(.sentences)
 
-            TabView(selection: $selectedPhotoIndex) {
-                ForEach(Array(block.orderedMediaReferences.enumerated()), id: \.element.id) { index, reference in
-                    Button {
-                        fullScreenPhotoIndex = index
-                        isShowingFullScreenGallery = true
-                    } label: {
-                        PhotoAssetView(
-                            reference: reference,
-                            fitEntireImage: true,
-                            backgroundColor: .black
-                        ) { isAvailable in
-                            if isAvailable {
-                                unavailableReferenceIDs.remove(reference.id)
-                            } else {
-                                unavailableReferenceIDs.insert(reference.id)
+            GeometryReader { geometry in
+                TabView(selection: $selectedPhotoIndex) {
+                    ForEach(Array(block.orderedMediaReferences.enumerated()), id: \.element.id) { index, reference in
+                        Button {
+                            fullScreenPhotoIndex = index
+                            isShowingFullScreenGallery = true
+                        } label: {
+                            PhotoAssetView(
+                                reference: reference,
+                                fitEntireImage: true,
+                                backgroundColor: .black
+                            ) { isAvailable in
+                                if isAvailable {
+                                    unavailableReferenceIDs.remove(reference.id)
+                                } else {
+                                    unavailableReferenceIDs.insert(reference.id)
+                                }
                             }
-                        }
+                            .frame(width: geometry.size.width, height: geometry.size.height)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .padding(.horizontal, 2)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .tag(index)
+                        .accessibilityLabel("View gallery photo \(index + 1) full screen")
                     }
-                    .buttonStyle(.plain)
-                    .tag(index)
-                    .accessibilityLabel("View gallery photo \(index + 1) full screen")
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .tabViewStyle(.page(indexDisplayMode: .always))
             }
             .frame(height: 240)
-            .tabViewStyle(.page(indexDisplayMode: .always))
 
             if !unavailableReferenceIDs.isEmpty {
                 let missingNumbers = block.orderedMediaReferences.enumerated().compactMap {
@@ -1750,6 +1768,9 @@ private struct FullScreenGalleryView: View {
     @Environment(\.dismiss) private var dismiss
     let references: [MediaReference]
     @State private var selectedIndex: Int
+    @State private var metadata: PhotoAssetMetadata?
+    @State private var metadataByIdentifier: [String: PhotoAssetMetadata] = [:]
+    @State private var isInfoVisible = false
 
     init(references: [MediaReference], initialIndex: Int) {
         self.references = references
@@ -1759,60 +1780,315 @@ private struct FullScreenGalleryView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            TabView(selection: $selectedIndex) {
-                ForEach(Array(references.enumerated()), id: \.element.id) { index, reference in
-                    PhotoAssetView(
-                        reference: reference,
-                        fitEntireImage: true,
-                        backgroundColor: .black
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    FullScreenPersistentControls(
+                        countText: "\(selectedIndex + 1) of \(references.count)",
+                        closeAccessibilityLabel: "Close full-screen gallery",
+                        onClose: { dismiss() }
                     )
-                        .tag(index)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .ignoresSafeArea()
-
-            VStack {
-                HStack {
-                    Text("\(selectedIndex + 1) of \(references.count)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .frame(height: 44)
-                        .background(.black.opacity(0.55), in: Capsule())
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.body.weight(.bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(.black.opacity(0.55), in: Circle())
+                    if geometry.size.width > geometry.size.height {
+                        HStack(spacing: 0) {
+                            galleryPhotos
+                            CollapsibleLandscapePhotoPanel(
+                                isVisible: $isInfoVisible,
+                                metadata: metadata
+                            )
+                            .frame(width: isInfoVisible
+                                ? landscapeSidebarWidth(for: geometry.size.width)
+                                : collapsedPanelThickness
+                            )
+                        }
+                        FullScreenPersistentCaption(caption: selectedCaption)
+                    } else {
+                        VStack(spacing: 0) {
+                            galleryPhotos
+                            FullScreenPersistentCaption(caption: selectedCaption)
+                            CollapsiblePortraitPhotoPanel(
+                                isVisible: $isInfoVisible,
+                                metadata: metadata
+                            )
+                            .frame(height: isInfoVisible
+                                ? portraitPanelHeight(for: geometry.size.height)
+                                : collapsedPanelThickness
+                            )
+                        }
                     }
-                    .accessibilityLabel("Close full-screen gallery")
-                }
-                .padding()
-                Spacer()
-                if references.indices.contains(selectedIndex),
-                   !references[selectedIndex].caption.isEmpty {
-                    Text(references[selectedIndex].caption)
-                        .font(.body)
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal)
-                        .padding(.bottom, 24)
-                        .accessibilityLabel("Photo caption")
                 }
             }
+            .animation(.easeInOut(duration: 0.22), value: isInfoVisible)
         }
         .statusBarHidden()
+        .task(id: selectedReferenceID) {
+            guard references.indices.contains(selectedIndex) else {
+                metadata = nil
+                return
+            }
+            let identifier = selectedReferenceID
+            let reference = references[selectedIndex]
+            if let cachedMetadata = metadataByIdentifier[identifier] {
+                metadata = cachedMetadata
+                return
+            }
+            let loadedMetadata = await PhotoAssetMetadataLoader.load(
+                reference: reference
+            )
+            guard selectedReferenceID == identifier else { return }
+            metadata = loadedMetadata
+            if let loadedMetadata {
+                metadataByIdentifier[identifier] = loadedMetadata
+            }
+        }
+    }
+
+    private var selectedReferenceID: String {
+        references.indices.contains(selectedIndex)
+            ? references[selectedIndex].localIdentifier
+            : ""
+    }
+
+    private var selectedCaption: String {
+        references.indices.contains(selectedIndex) ? references[selectedIndex].caption : ""
+    }
+
+    private var galleryPhotos: some View {
+        TabView(selection: $selectedIndex) {
+            ForEach(Array(references.enumerated()), id: \.element.id) { index, reference in
+                PhotoAssetView(
+                    reference: reference,
+                    fitEntireImage: true,
+                    backgroundColor: .black
+                )
+                .tag(index)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+    }
+}
+
+private func landscapeSidebarWidth(for availableWidth: CGFloat) -> CGFloat {
+    min(max(availableWidth * 0.30, 260), 340)
+}
+
+private let collapsedPanelThickness: CGFloat = 34
+
+private func portraitPanelHeight(for availableHeight: CGFloat) -> CGFloat {
+    min(150, availableHeight * 0.24)
+}
+
+private struct CollapsibleLandscapePhotoPanel: View {
+    @Binding var isVisible: Bool
+    let metadata: PhotoAssetMetadata?
+
+    var body: some View {
+        if isVisible {
+            FullScreenPhotoSidebar(
+                metadata: metadata,
+                onHide: { setInfoVisible(false) }
+            )
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24).onEnded { value in
+                    if value.translation.width > 70 {
+                        setInfoVisible(false)
+                    }
+                }
+            )
+        } else {
+            PanelRevealHandle(
+                systemImage: "chevron.left",
+                accessibilityLabel: "Show photo information",
+                action: { setInfoVisible(true) }
+            )
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 16).onEnded { value in
+                    if value.translation.width < -35 {
+                        setInfoVisible(true)
+                    }
+                }
+            )
+        }
+    }
+
+    private func setInfoVisible(_ visible: Bool) {
+        isVisible = visible
+    }
+}
+
+private struct CollapsiblePortraitPhotoPanel: View {
+    @Binding var isVisible: Bool
+    let metadata: PhotoAssetMetadata?
+
+    var body: some View {
+        if isVisible {
+            FullScreenPhotoBottomPanel(
+                metadata: metadata,
+                onHide: { setInfoVisible(false) }
+            )
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24).onEnded { value in
+                    if value.translation.height > 70 {
+                        setInfoVisible(false)
+                    }
+                }
+            )
+        } else {
+            PanelRevealHandle(
+                systemImage: "chevron.up",
+                accessibilityLabel: "Show photo information",
+                action: { setInfoVisible(true) }
+            )
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 16).onEnded { value in
+                    if value.translation.height < -35 {
+                        setInfoVisible(true)
+                    }
+                }
+            )
+        }
+    }
+
+    private func setInfoVisible(_ visible: Bool) {
+        isVisible = visible
+    }
+}
+
+private struct FullScreenPhotoSidebar: View {
+    let metadata: PhotoAssetMetadata?
+    let onHide: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PanelCollapseIndicator(
+                systemImage: "chevron.right",
+                accessibilityLabel: "Hide photo information",
+                action: onHide
+            )
+            PhotoInformationView(metadata: metadata)
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .background(Color(white: 0.08))
+    }
+}
+
+private struct FullScreenPhotoBottomPanel: View {
+    let metadata: PhotoAssetMetadata?
+    let onHide: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            PanelCollapseIndicator(
+                systemImage: "chevron.down",
+                accessibilityLabel: "Hide photo information",
+                action: onHide
+            )
+            PhotoInformationView(metadata: metadata)
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .background(Color(white: 0.08))
+    }
+}
+
+private struct FullScreenPersistentControls: View {
+    let countText: String?
+    let closeAccessibilityLabel: String
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack {
+            if let countText {
+                Text(countText)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+            }
+            Spacer()
+            FullScreenCloseButton(
+                accessibilityLabel: closeAccessibilityLabel,
+                action: onClose
+            )
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(Color.black)
+    }
+}
+
+private struct FullScreenPersistentCaption: View {
+    let caption: String
+
+    var body: some View {
+        ScrollView {
+            Text(caption)
+                .font(.subheadline)
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+        }
+        .frame(height: 60)
+        .background(Color.black)
+        .accessibilityLabel(caption.isEmpty ? "No photo caption" : "Photo caption: \(caption)")
+    }
+}
+
+private struct PanelCollapseIndicator: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(maxWidth: .infinity)
+                .frame(height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct FullScreenCloseButton: View {
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.body.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(.black.opacity(0.55), in: Circle())
+        }
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct PanelRevealHandle: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(white: 0.08))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 

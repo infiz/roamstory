@@ -1,4 +1,5 @@
 import AVKit
+import ImageIO
 import Photos
 import SwiftUI
 
@@ -12,6 +13,169 @@ enum PhotoLibraryAccess {
             status = currentStatus
         }
         return status == .authorized || status == .limited
+    }
+}
+
+struct PhotoAssetMetadata: Equatable {
+    let takenAt: Date?
+    let timeZone: TimeZone
+    let byteCount: Int64?
+    let pixelWidth: Int
+    let pixelHeight: Int
+
+    var takenAtText: String? {
+        guard let takenAt else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .medium
+        formatter.timeZone = timeZone
+        return formatter.string(from: takenAt)
+    }
+
+    var sizeText: String? {
+        byteCount.map(DataSizeFormatting.string(fromByteCount:))
+    }
+
+    var dimensionsText: String {
+        "\(pixelWidth) × \(pixelHeight) px"
+    }
+}
+
+enum PhotoAssetMetadataLoader {
+    static func load(reference: MediaReference) async -> PhotoAssetMetadata? {
+        guard await PhotoLibraryAccess.isAuthorized() else { return nil }
+        let result = PHAsset.fetchAssets(
+            withLocalIdentifiers: [reference.localIdentifier],
+            options: nil
+        )
+        guard let asset = result.firstObject else { return nil }
+
+        let input = await contentEditingInput(for: asset)
+        let originalMetadata = input?.fullSizeImageURL.flatMap(readOriginalMetadata)
+        let byteCount: Int64?
+        if let url = input?.fullSizeImageURL,
+           let localFileSize = fileSize(at: url) {
+            byteCount = localFileSize
+        } else {
+            byteCount = await resourceSize(for: asset)
+        }
+        let takenAt = originalMetadata?.date ?? asset.creationDate
+
+        return PhotoAssetMetadata(
+            takenAt: takenAt,
+            timeZone: .autoupdatingCurrent,
+            byteCount: byteCount,
+            pixelWidth: asset.pixelWidth,
+            pixelHeight: asset.pixelHeight
+        )
+    }
+
+    private static func contentEditingInput(for asset: PHAsset) async -> PHContentEditingInput? {
+        let options = PHContentEditingInputRequestOptions()
+        options.isNetworkAccessAllowed = true
+        return await withCheckedContinuation { continuation in
+            asset.requestContentEditingInput(with: options) { input, _ in
+                continuation.resume(returning: input)
+            }
+        }
+    }
+
+    private static func readOriginalMetadata(
+        from url: URL
+    ) -> (date: Date, timeZone: TimeZone)? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                as? [CFString: Any],
+              let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
+              let dateText = exif[kCGImagePropertyExifDateTimeOriginal] as? String,
+              let offsetText = exif[kCGImagePropertyExifOffsetTimeOriginal] as? String,
+              let timeZone = timeZone(from: offsetText)
+        else {
+            return nil
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        formatter.timeZone = timeZone
+        guard let date = formatter.date(from: dateText) else { return nil }
+        return (date, timeZone)
+    }
+
+    private static func timeZone(from offset: String) -> TimeZone? {
+        let normalized = offset.replacingOccurrences(of: ":", with: "")
+        guard normalized.count == 5,
+              let sign = normalized.first,
+              sign == "+" || sign == "-",
+              let hours = Int(normalized.dropFirst().prefix(2)),
+              let minutes = Int(normalized.suffix(2)),
+              hours <= 23,
+              minutes <= 59
+        else {
+            return nil
+        }
+        let multiplier = sign == "-" ? -1 : 1
+        return TimeZone(secondsFromGMT: multiplier * (hours * 3_600 + minutes * 60))
+    }
+
+    private static func fileSize(at url: URL) -> Int64? {
+        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+              let size = values.fileSize
+        else {
+            return nil
+        }
+        return Int64(size)
+    }
+
+    private static func resourceSize(for asset: PHAsset) async -> Int64? {
+        guard let resource = PHAssetResource.assetResources(for: asset).first else {
+            return nil
+        }
+        let options = PHAssetResourceRequestOptions()
+        options.isNetworkAccessAllowed = true
+        return await withCheckedContinuation { continuation in
+            var byteCount: Int64 = 0
+            PHAssetResourceManager.default().requestData(
+                for: resource,
+                options: options
+            ) { data in
+                byteCount += Int64(data.count)
+            } completionHandler: { error in
+                continuation.resume(returning: error == nil ? byteCount : nil)
+            }
+        }
+    }
+}
+
+struct PhotoInformationView: View {
+    let metadata: PhotoAssetMetadata?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if let metadata {
+                if let takenAtText = metadata.takenAtText {
+                    Label(takenAtText, systemImage: "calendar")
+                }
+                if let sizeText = metadata.sizeText {
+                    Label(sizeText, systemImage: "externaldrive")
+                }
+                Label(metadata.dimensionsText, systemImage: "aspectratio")
+            } else {
+                Label("Loading photo details…", systemImage: "calendar")
+                    .foregroundStyle(.white.opacity(0.72))
+                Label("—", systemImage: "externaldrive")
+                    .foregroundStyle(.white.opacity(0.45))
+                Label("—", systemImage: "aspectratio")
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        }
+        .frame(height: 60, alignment: .topLeading)
+        .font(.caption.monospacedDigit())
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -36,22 +200,35 @@ struct PhotoAssetView: View {
 
     var body: some View {
         ZStack {
+            resolvedBackgroundColor
+
             if let image {
-                if fitEntireImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .clipped()
+                Color.clear.overlay {
+                    if fitEntireImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .clipped()
+                    }
                 }
             } else if isMissing {
-                MissingPhotoReferenceView()
+                Color.clear.overlay {
+                    MissingPhotoReferenceView()
+                }
             } else {
-                ProgressView("Loading from Photos…")
+                Color.clear.overlay {
+                    VStack(spacing: 8) {
+                        ProgressView()
+                        Text("Loading from Photos…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             if showVideoBadge && image != nil {
@@ -63,13 +240,17 @@ struct PhotoAssetView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .background(
-            backgroundColor
-                ?? (fitEntireImage ? Color.white : Color.secondary.opacity(0.08))
-        )
+        .transaction { transaction in
+            transaction.animation = nil
+        }
         .task(id: reference.localIdentifier) {
             await loadImage()
         }
+    }
+
+    private var resolvedBackgroundColor: Color {
+        backgroundColor
+            ?? (fitEntireImage ? Color.white : Color.secondary.opacity(0.08))
     }
 
     @MainActor
