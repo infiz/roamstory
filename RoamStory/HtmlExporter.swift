@@ -71,12 +71,12 @@ struct HtmlExporter {
             .block h3 { margin:0 0 .55rem; }
             .block p { margin:.45rem 0; }
             img,video { display:block; width:100%; max-width:100%; height:auto; max-height:70vh; object-fit:contain; border-radius:12px; background:#101722; }
-            .gallery-slider { position:relative; width:100%; max-width:100%; border-radius:12px; overflow:hidden; background:white; }
+            .gallery-slider { position:relative; width:100%; max-width:100%; border-radius:12px; overflow:hidden; background:#05070a; }
             .gallery-track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; overscroll-behavior-x:contain; }
             .gallery-track::-webkit-scrollbar { display:none; }
             .gallery-slide { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; display:flex; flex-direction:column; justify-content:center; min-width:0; }
-            .gallery-slide img { width:100%; height:clamp(260px,60vw,560px); object-fit:contain; border-radius:0; background:white; cursor:zoom-in; }
-            .gallery-photo-caption { margin:0; padding:10px 18px 46px; color:#4f5864; font-size:.9rem; text-align:center; background:white; }
+            .gallery-slide img { width:100%; height:clamp(260px,70vh,640px); object-fit:contain; border-radius:0; background:#05070a; cursor:zoom-in; }
+            .gallery-photo-caption { margin:0; padding:10px 18px 46px; color:#d0d5dd; font-size:.9rem; text-align:center; background:#05070a; }
             .gallery-button { position:absolute; z-index:2; top:50%; translate:0 -50%; width:42px; height:42px; border:0; border-radius:50%; background:#17202ccc; color:white; font-size:1.5rem; cursor:pointer; }
             .gallery-button:disabled { opacity:.28; cursor:default; }
             .gallery-previous { left:12px; }
@@ -84,16 +84,27 @@ struct HtmlExporter {
             .gallery-dots { position:absolute; z-index:2; left:50%; bottom:12px; translate:-50% 0; display:flex; gap:7px; padding:7px 9px; border-radius:999px; background:#17202c99; }
             .gallery-dot { width:8px; height:8px; padding:0; border:0; border-radius:50%; background:#ffffff80; cursor:pointer; }
             .gallery-dot[aria-current="true"] { background:white; transform:scale(1.2); }
+            .gallery-play { position:absolute; z-index:3; top:12px; right:12px; width:40px; height:40px; border:0; border-radius:50%; background:#000b; color:white; cursor:pointer; }
             .photo-lightbox { width:100vw; height:100vh; max-width:none; max-height:none; margin:0; padding:0; border:0; background:#05070a; overflow:hidden; }
             .photo-lightbox::backdrop { background:#05070a; }
-            .photo-lightbox img { width:100%; height:100%; object-fit:contain; border-radius:0; background:#05070a; }
+            .photo-lightbox img { position:fixed; inset:0; width:100%; height:100%; object-fit:contain; border-radius:0; background:#05070a; }
+            .photo-lightbox > img:not(.lightbox-transition-image) { z-index:0; }
+            .lightbox-transition-image { z-index:1; pointer-events:none; }
             .lightbox-close { position:fixed; z-index:4; top:max(16px,env(safe-area-inset-top)); right:max(16px,env(safe-area-inset-right)); width:44px; height:44px; border:0; border-radius:50%; background:#ffffffdc; color:#111820; font-size:1.6rem; line-height:1; cursor:pointer; }
-            .lightbox-button { position:fixed; z-index:4; top:50%; translate:0 -50%; width:48px; height:48px; border:0; border-radius:50%; background:#ffffffc9; color:#111820; font-size:1.8rem; cursor:pointer; }
-            .lightbox-button:disabled { display:none; }
+            .lightbox-button { position:fixed; z-index:4; top:50%; translate:0 -50%; width:42px; height:42px; border:0; border-radius:50%; background:#17202ccc; color:white; font-size:1.5rem; cursor:pointer; }
+            .lightbox-button:disabled, .lightbox-button[hidden] { display:none; }
             .lightbox-previous { left:max(16px,env(safe-area-inset-left)); }
             .lightbox-next { right:max(16px,env(safe-area-inset-right)); }
             .lightbox-position { position:fixed; z-index:4; left:50%; bottom:max(18px,env(safe-area-inset-bottom)); translate:-50% 0; padding:7px 12px; border-radius:999px; background:#000a; color:white; font-size:.9rem; }
+            .lightbox-position[hidden] { display:none; }
             .lightbox-caption { position:fixed; z-index:4; left:50%; bottom:max(62px,calc(env(safe-area-inset-bottom) + 62px)); translate:-50% 0; width:min(680px,calc(100% - 40px)); padding:9px 13px; border-radius:10px; background:#000a; color:white; text-align:center; }
+            .lightbox-info-button { position:fixed; z-index:4; top:max(16px,env(safe-area-inset-top)); right:max(72px,calc(env(safe-area-inset-right) + 72px)); width:44px; height:44px; border:0; border-radius:50%; background:#ffffffdc; color:#111820; cursor:pointer; }
+            .lightbox-play-button { position:fixed; z-index:4; top:max(16px,env(safe-area-inset-top)); right:max(128px,calc(env(safe-area-inset-right) + 128px)); width:44px; height:44px; border:0; border-radius:50%; background:#ffffffdc; color:#111820; cursor:pointer; }
+            .lightbox-play-button[hidden] { display:none; }
+            .lightbox-metadata { position:fixed; z-index:4; right:0; top:76px; width:min(340px,90vw); padding:16px; background:#12161cee; color:white; border-radius:12px 0 0 12px; line-height:1.7; }
+            .lightbox-metadata div { display:flex; gap:9px; align-items:center; font-variant-numeric:tabular-nums; }
+            .lightbox-metadata span { width:1.4rem; text-align:center; }
+            .lightbox-metadata[hidden] { display:none; }
             blockquote { margin:.25rem 0; padding:.5rem 1.2rem; border-left:4px solid var(--accent); color:#4f5864; }
             pre { width:100%; margin:0; overflow:auto; padding:1rem; border-radius:10px; background:#18202b; color:#f4f6f8; font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
             hr { width:100%; border:0; border-top:1px solid var(--line); margin:0; }
@@ -112,11 +123,14 @@ struct HtmlExporter {
           </main>
           <dialog class="photo-lightbox" aria-label="Full-screen photo">
             <button class="lightbox-close" type="button" aria-label="Close full-screen photo">×</button>
+            <button class="lightbox-info-button" type="button" aria-label="Show photo information">ⓘ</button>
+            <button class="lightbox-play-button" type="button" aria-label="Play automatic slideshow">▶</button>
             <button class="lightbox-button lightbox-previous" type="button" aria-label="Previous full-screen photo">‹</button>
             <img alt="">
             <button class="lightbox-button lightbox-next" type="button" aria-label="Next full-screen photo">›</button>
             <div class="lightbox-caption" aria-live="polite"></div>
             <div class="lightbox-position" aria-live="polite"></div>
+            <div class="lightbox-metadata" hidden></div>
           </dialog>
           <script>
             const lightbox = document.querySelector('.photo-lightbox');
@@ -125,10 +139,36 @@ struct HtmlExporter {
             const lightboxNext = lightbox.querySelector('.lightbox-next');
             const lightboxCaption = lightbox.querySelector('.lightbox-caption');
             const lightboxPosition = lightbox.querySelector('.lightbox-position');
+            const lightboxMetadata = lightbox.querySelector('.lightbox-metadata');
+            const lightboxInfo = lightbox.querySelector('.lightbox-info-button');
+            const lightboxPlay = lightbox.querySelector('.lightbox-play-button');
             let lightboxImages = [];
             let lightboxIndex = 0;
             let lightboxTouchStart = null;
-            const closeLightbox = () => lightbox.close();
+            let lightboxSlideshowTimer;
+            let isLightboxTransitioning = false;
+            const stopLightboxSlideshow = () => {
+              clearInterval(lightboxSlideshowTimer);
+              lightboxSlideshowTimer = undefined;
+              lightboxPlay.textContent = '▶';
+              lightboxPlay.setAttribute('aria-label', 'Play automatic slideshow');
+            };
+            const closeLightbox = () => {
+              stopLightboxSlideshow();
+              lightbox.close();
+            };
+            const formatBytes = (value) => {
+              const bytes = Number(value);
+              if (!Number.isFinite(bytes)) return null;
+              const units = ['B', 'KB', 'MB', 'GB'];
+              let size = bytes;
+              let unitIndex = 0;
+              while (size >= 1_000 && unitIndex < units.length - 1) {
+                size /= 1_000;
+                unitIndex += 1;
+              }
+              return `${size.toFixed(unitIndex ? 1 : 0)} ${units[unitIndex]}`;
+            };
             const updateLightbox = () => {
               const image = lightboxImages[lightboxIndex];
               if (!image) return;
@@ -136,29 +176,107 @@ struct HtmlExporter {
               lightboxImage.alt = image.alt;
               lightboxCaption.textContent = image.dataset.caption || '';
               lightboxCaption.hidden = !image.dataset.caption;
-              lightboxPrevious.disabled = lightboxIndex === 0;
-              lightboxNext.disabled = lightboxIndex === lightboxImages.length - 1;
               lightboxPosition.textContent = `${lightboxIndex + 1} of ${lightboxImages.length}`;
-            };
-            const showPreviousLightboxPhoto = () => {
-              if (lightboxIndex > 0) {
-                lightboxIndex -= 1;
-                updateLightbox();
+              const isGallery = lightboxImages.length > 1;
+              lightboxPrevious.hidden = !isGallery;
+              lightboxNext.hidden = !isGallery;
+              lightboxPosition.hidden = !isGallery;
+              lightboxPlay.hidden = !isGallery;
+              const details = [];
+              if (image.dataset.takenAt) {
+                try {
+                  details.push(['🗓', new Intl.DateTimeFormat(undefined, {
+                    dateStyle:'medium',
+                    timeStyle:'medium',
+                    timeZone:image.dataset.timeZone || undefined
+                  }).format(new Date(image.dataset.takenAt))]);
+                } catch {
+                  details.push(['🗓', image.dataset.takenAt]);
+                }
               }
-            };
-            const showNextLightboxPhoto = () => {
-              if (lightboxIndex < lightboxImages.length - 1) {
-                lightboxIndex += 1;
-                updateLightbox();
+              if (image.dataset.byteSize) {
+                details.push(['▣', formatBytes(image.dataset.byteSize)]);
               }
+              if (image.dataset.pixelWidth && image.dataset.pixelHeight) {
+                details.push([
+                  '↔',
+                  `${image.dataset.pixelWidth} × ${image.dataset.pixelHeight} px`
+                ]);
+              }
+              lightboxMetadata.replaceChildren(...details.map(([icon, text]) => {
+                const row = document.createElement('div');
+                const symbol = document.createElement('span');
+                symbol.setAttribute('aria-hidden', 'true');
+                symbol.textContent = icon;
+                row.append(symbol, document.createTextNode(text));
+                return row;
+              }));
             };
+            const transitionLightbox = async (direction) => {
+              if (isLightboxTransitioning || lightboxImages.length < 2) return;
+              isLightboxTransitioning = true;
+              const nextIndex = (
+                lightboxIndex + direction + lightboxImages.length
+              ) % lightboxImages.length;
+              const nextSource = lightboxImages[nextIndex];
+              const incoming = lightboxImage.cloneNode();
+              incoming.className = 'lightbox-transition-image';
+              incoming.src = nextSource.src;
+              incoming.alt = nextSource.alt;
+              lightbox.appendChild(incoming);
+              const duration = 700;
+              const outgoingAnimation = lightboxImage.animate([
+                { transform: 'translateX(0)' },
+                { transform: `translateX(${-direction * 100}%)` }
+              ], { duration, easing: 'cubic-bezier(.25,.1,.25,1)' });
+              const incomingAnimation = incoming.animate([
+                { transform: `translateX(${direction * 100}%)` },
+                { transform: 'translateX(0)' }
+              ], { duration, easing: 'cubic-bezier(.25,.1,.25,1)' });
+              await Promise.allSettled([
+                outgoingAnimation.finished,
+                incomingAnimation.finished
+              ]);
+              lightboxIndex = nextIndex;
+              updateLightbox();
+              incoming.remove();
+              isLightboxTransitioning = false;
+            };
+            const showPreviousLightboxPhoto = () => transitionLightbox(-1);
+            const showNextLightboxPhoto = () => transitionLightbox(1);
             lightbox.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
-            lightboxPrevious.addEventListener('click', showPreviousLightboxPhoto);
-            lightboxNext.addEventListener('click', showNextLightboxPhoto);
+            lightboxInfo.addEventListener('click', () => {
+              lightboxMetadata.hidden = !lightboxMetadata.hidden;
+              lightboxInfo.setAttribute(
+                'aria-label',
+                lightboxMetadata.hidden ? 'Show photo information' : 'Hide photo information'
+              );
+            });
+            lightboxPrevious.addEventListener('click', () => {
+              stopLightboxSlideshow();
+              showPreviousLightboxPhoto();
+            });
+            lightboxNext.addEventListener('click', () => {
+              stopLightboxSlideshow();
+              showNextLightboxPhoto();
+            });
+            lightboxPlay.addEventListener('click', () => {
+              if (lightboxSlideshowTimer) {
+                stopLightboxSlideshow();
+              } else {
+                lightboxPlay.textContent = '❚❚';
+                lightboxPlay.setAttribute('aria-label', 'Pause automatic slideshow');
+                lightboxSlideshowTimer = setInterval(showNextLightboxPhoto, 3_000);
+              }
+            });
             lightbox.addEventListener('click', (event) => {
               if (event.target === lightbox) closeLightbox();
             });
+            lightbox.addEventListener('close', stopLightboxSlideshow);
             lightbox.addEventListener('keydown', (event) => {
+              if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                stopLightboxSlideshow();
+              }
               if (event.key === 'ArrowLeft') showPreviousLightboxPhoto();
               if (event.key === 'ArrowRight') showNextLightboxPhoto();
             });
@@ -169,6 +287,7 @@ struct HtmlExporter {
               if (lightboxTouchStart === null) return;
               const distance = event.changedTouches[0].clientX - lightboxTouchStart;
               lightboxTouchStart = null;
+              if (Math.abs(distance) > 45) stopLightboxSlideshow();
               if (distance > 45) showPreviousLightboxPhoto();
               if (distance < -45) showNextLightboxPhoto();
             }, { passive: true });
@@ -179,7 +298,34 @@ struct HtmlExporter {
               const previous = gallery.querySelector('.gallery-previous');
               const next = gallery.querySelector('.gallery-next');
               const dots = gallery.querySelector('.gallery-dots');
+              const play = gallery.querySelector('.gallery-play');
+              const galleryImages = Array.from(
+                gallery.querySelectorAll('.gallery-slide img')
+              );
               let activeIndex = 0;
+              let slideshowTimer;
+              let scrollSettledTimer;
+
+              const show = (index, direction = 0) => {
+                const circularIndex = (index + slides.length) % slides.length;
+                let physicalIndex = circularIndex + 1;
+                if (direction > 0 && activeIndex === slides.length - 1) {
+                  physicalIndex = slides.length + 1;
+                } else if (direction < 0 && activeIndex === 0) {
+                  physicalIndex = 0;
+                }
+                track.scrollTo({
+                  left: physicalIndex * track.clientWidth,
+                  behavior: 'smooth'
+                });
+              };
+
+              const stopSlideshow = () => {
+                clearInterval(slideshowTimer);
+                slideshowTimer = undefined;
+                play.textContent = '▶';
+                play.setAttribute('aria-label', 'Play automatic slideshow');
+              };
 
               slides.forEach((_, index) => {
                 const dot = document.createElement('button');
@@ -187,32 +333,77 @@ struct HtmlExporter {
                 dot.type = 'button';
                 dot.setAttribute('aria-label', `Show photo ${index + 1}`);
                 dot.addEventListener('click', () => {
-                  track.scrollTo({ left: index * track.clientWidth, behavior: 'smooth' });
+                  stopSlideshow();
+                  show(index, 0);
                 });
                 dots.appendChild(dot);
               });
 
+              if (slides.length > 1) {
+                const firstClone = slides[0].cloneNode(true);
+                const lastClone = slides[slides.length - 1].cloneNode(true);
+                firstClone.setAttribute('aria-hidden', 'true');
+                lastClone.setAttribute('aria-hidden', 'true');
+                track.prepend(lastClone);
+                track.append(firstClone);
+                requestAnimationFrame(() => {
+                  track.scrollTo({ left: track.clientWidth, behavior: 'auto' });
+                });
+              }
+
               const update = () => {
-                activeIndex = Math.max(0, Math.min(
-                  slides.length - 1,
-                  Math.round(track.scrollLeft / Math.max(track.clientWidth, 1))
-                ));
-                previous.disabled = activeIndex === 0;
-                next.disabled = activeIndex === slides.length - 1;
+                const physicalIndex = Math.round(
+                  track.scrollLeft / Math.max(track.clientWidth, 1)
+                );
+                activeIndex = physicalIndex <= 0
+                  ? slides.length - 1
+                  : physicalIndex >= slides.length + 1
+                    ? 0
+                    : physicalIndex - 1;
                 Array.from(dots.children).forEach((dot, index) => {
                   dot.setAttribute('aria-current', index === activeIndex ? 'true' : 'false');
                 });
+                clearTimeout(scrollSettledTimer);
+                scrollSettledTimer = setTimeout(() => {
+                  const page = Math.round(
+                    track.scrollLeft / Math.max(track.clientWidth, 1)
+                  );
+                  if (page === 0) {
+                    track.scrollTo({
+                      left: slides.length * track.clientWidth,
+                      behavior: 'auto'
+                    });
+                  } else if (page === slides.length + 1) {
+                    track.scrollTo({ left: track.clientWidth, behavior: 'auto' });
+                  }
+                }, 120);
               };
 
               previous.addEventListener('click', () => {
-                track.scrollBy({ left: -track.clientWidth, behavior: 'smooth' });
+                stopSlideshow();
+                show(activeIndex - 1, -1);
               });
               next.addEventListener('click', () => {
-                track.scrollBy({ left: track.clientWidth, behavior: 'smooth' });
+                stopSlideshow();
+                show(activeIndex + 1, 1);
+              });
+              play.addEventListener('click', () => {
+                if (slideshowTimer) {
+                  stopSlideshow();
+                  return;
+                }
+                play.textContent = '❚❚';
+                play.setAttribute('aria-label', 'Pause automatic slideshow');
+                slideshowTimer = setInterval(() => show(activeIndex + 1, 1), 3_000);
               });
               track.addEventListener('scroll', update, { passive: true });
-              window.addEventListener('resize', update);
-              const galleryImages = Array.from(gallery.querySelectorAll('.gallery-slide img'));
+              window.addEventListener('resize', () => {
+                track.scrollTo({
+                  left: (activeIndex + 1) * track.clientWidth,
+                  behavior: 'auto'
+                });
+                update();
+              });
               galleryImages.forEach((image, index) => {
                 image.addEventListener('click', () => {
                   lightboxImages = galleryImages;
@@ -288,8 +479,9 @@ struct HtmlExporter {
                 return "<p class=\"block meta\">Photo unavailable</p>"
             }
             let path = context.addAsset(data: data, extension: "jpg")
+            let metadataAttributes = await photoMetadataAttributes(reference: reference)
             let imageHTML = """
-            <img class="photo-viewer-image" src="\(path)" alt="\(attributeEscape(block.caption.isEmpty ? "Travel journal photo" : block.caption))" data-caption="\(attributeEscape(block.caption))">
+            <img class="photo-viewer-image" src="\(path)" alt="\(attributeEscape(block.caption.isEmpty ? "Travel journal photo" : block.caption))" data-caption="\(attributeEscape(block.caption))"\(metadataAttributes)>
             """
             let linkedImage: String
             if let url = LinkAddress.normalizedURL(from: block.linkURLString) {
@@ -311,12 +503,13 @@ struct HtmlExporter {
                 if let image = await loadImage(reference: reference),
                    let data = image.jpegData(compressionQuality: 0.86) {
                     let path = context.addAsset(data: data, extension: "jpg")
+                    let metadataAttributes = await photoMetadataAttributes(reference: reference)
                     let photoCaptionText = reference.caption
                     let photoCaption = photoCaptionText.isEmpty
                         ? ""
                         : "<p class=\"gallery-photo-caption\">\(htmlEscape(photoCaptionText))</p>"
                     images += """
-                    <div class="gallery-slide"><img src="\(path)" alt="\(attributeEscape(photoCaptionText.isEmpty ? "Gallery photo" : photoCaptionText))" data-caption="\(attributeEscape(photoCaptionText))">\(photoCaption)</div>
+                    <div class="gallery-slide"><img src="\(path)" alt="\(attributeEscape(photoCaptionText.isEmpty ? "Gallery photo" : photoCaptionText))" data-caption="\(attributeEscape(photoCaptionText))"\(metadataAttributes)>\(photoCaption)</div>
                     """
                 }
             }
@@ -332,6 +525,7 @@ struct HtmlExporter {
                 <div class="gallery-track">\(images)</div>
                 <button class="gallery-button gallery-previous" type="button" aria-label="Previous photo">‹</button>
                 <button class="gallery-button gallery-next" type="button" aria-label="Next photo">›</button>
+                <button class="gallery-play" type="button" aria-label="Play automatic slideshow">▶</button>
                 <div class="gallery-dots" aria-label="Choose a photo"></div>
               </div>
             </figure>
@@ -504,6 +698,24 @@ struct HtmlExporter {
     private static func caption(_ text: String) -> String {
         guard !text.isEmpty else { return "" }
         return "<figcaption class=\"caption\">\(htmlEscape(text).replacingOccurrences(of: "\n", with: "<br>"))</figcaption>"
+    }
+
+    private static func photoMetadataAttributes(reference: MediaReference) async -> String {
+        guard let metadata = await PhotoAssetMetadataLoader.load(reference: reference) else {
+            return " data-filename=\"\(attributeEscape(reference.originalFilename))\""
+        }
+        let formatter = ISO8601DateFormatter()
+        var attributes = " data-filename=\"\(attributeEscape(reference.originalFilename))\""
+        if let takenAt = metadata.takenAt {
+            attributes += " data-taken-at=\"\(formatter.string(from: takenAt))\""
+        }
+        attributes += " data-time-zone=\"\(attributeEscape(metadata.timeZone.identifier))\""
+        if let byteCount = metadata.byteCount {
+            attributes += " data-byte-size=\"\(byteCount)\""
+        }
+        attributes += " data-pixel-width=\"\(metadata.pixelWidth)\""
+        attributes += " data-pixel-height=\"\(metadata.pixelHeight)\""
+        return attributes
     }
 
     private static func htmlEscape(_ text: String) -> String {

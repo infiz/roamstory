@@ -443,6 +443,14 @@ final class TripSorterTests: XCTestCase {
         XCTAssertNotNil(data.range(of: Data(".block { display:block; width:100%".utf8)))
         XCTAssertNotNil(data.range(of: Data("object-fit:contain".utf8)))
         XCTAssertNotNil(data.range(of: Data("scroll-snap-type:x mandatory".utf8)))
+        XCTAssertNotNil(data.range(of: Data("background:#05070a".utf8)))
+        XCTAssertNotNil(data.range(of: Data("gallery-play".utf8)))
+        XCTAssertNotNil(data.range(of: Data("setInterval".utf8)))
+        XCTAssertNotNil(data.range(of: Data("lightbox-metadata".utf8)))
+        XCTAssertNotNil(data.range(of: Data("lightbox-play-button".utf8)))
+        XCTAssertNotNil(data.range(of: Data("lightbox-transition-image".utf8)))
+        XCTAssertNotNil(data.range(of: Data("cloneNode(true)".utf8)))
+        XCTAssertNotNil(data.range(of: Data("dataset.takenAt".utf8)))
         XCTAssertNotNil(data.range(of: Data("photo-lightbox".utf8)))
         XCTAssertNotNil(data.range(of: Data("photo-viewer-image".utf8)))
         XCTAssertNotNil(data.range(of: Data("lightboxImages = [image]".utf8)))
@@ -499,5 +507,29 @@ final class TripSorterTests: XCTestCase {
         XCTAssertNil(object["tripUUID"])
         XCTAssertNil(object["trip_uuid"])
         XCTAssertGreaterThan(try request.encodedByteCount(), 0)
+    }
+
+    func testPublishingFingerprintIgnoresServerVersionButDetectsContentChanges() throws {
+        let tripUuid = UUID()
+        func request(version: Int64?, title: String) -> PublishTripRequest {
+            PublishTripRequest(
+                tripUuid: tripUuid,
+                expectedVersion: version,
+                title: title,
+                subtitle: "",
+                startAt: nil,
+                endAt: nil,
+                sections: []
+            )
+        }
+
+        XCTAssertEqual(
+            try request(version: 1, title: "Japan").contentFingerprint(),
+            try request(version: 2, title: "Japan").contentFingerprint()
+        )
+        XCTAssertNotEqual(
+            try request(version: 2, title: "Japan").contentFingerprint(),
+            try request(version: 2, title: "Kyoto").contentFingerprint()
+        )
     }
 }

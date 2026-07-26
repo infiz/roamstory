@@ -21,12 +21,12 @@
 		10000000000000000000010D /* DocxExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000010 /* DocxExporter.swift */; };
 		10000000000000000000010E /* HtmlExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* HtmlExporter.swift */; };
 		10000000000000000000010F /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000012 /* AuthenticationService.swift */; };
-		100000000000000000000117 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* SetupView.swift */; };
-		100000000000000000000118 /* PublishingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000016 /* PublishingService.swift */; };
 		100000000000000000000113 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000801 /* GoogleSignIn */; };
 		100000000000000000000114 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000802 /* GoogleSignInSwift */; };
 		100000000000000000000115 /* FacebookCore in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000803 /* FacebookCore */; };
 		100000000000000000000116 /* FacebookLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000804 /* FacebookLogin */; };
+		100000000000000000000117 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* SetupView.swift */; };
+		100000000000000000000118 /* PublishingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000016 /* PublishingService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -328,9 +328,9 @@
 			baseConfigurationReference = 100000000000000000000015 /* Authentication.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = RoamStory/RoamStory.entitlements;
-				CURRENT_PROJECT_VERSION = 19;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = N6386GYZVJ;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -356,9 +356,9 @@
 			baseConfigurationReference = 100000000000000000000015 /* Authentication.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = RoamStory/RoamStory.entitlements;
-				CURRENT_PROJECT_VERSION = 19;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = N6386GYZVJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RoamStory/Info.plist;
