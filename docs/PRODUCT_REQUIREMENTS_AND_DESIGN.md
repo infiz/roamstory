@@ -1,8 +1,8 @@
 # RoamStory Product Requirements and Technical Design
 
-**Status:** Draft for implementation  
-**Version:** 0.1  
-**Last updated:** 2026-07-22  
+**Status:** Draft for implementation
+**Version:** 0.1
+**Last updated:** 2026-07-22
 **Platform:** iOS first; architecture should permit future iPadOS and macOS clients
 
 ## 1. Product summary
