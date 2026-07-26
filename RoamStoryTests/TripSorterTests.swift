@@ -469,6 +469,10 @@ final class TripSorterTests: XCTestCase {
         XCTAssertNotNil(data.range(of: Data("marker=34.967100%2C135.772700".utf8)))
         XCTAssertNotNil(data.range(of: Data(">Open map</a>".utf8)))
         XCTAssertNotNil(data.range(of: Data("Morning walk".utf8)))
+        XCTAssertNotNil(data.range(of: Data("class=\"theme-toggle\"".utf8)))
+        XCTAssertNotNil(data.range(of: Data("roamstory-theme".utf8)))
+        XCTAssertNotNil(data.range(of: Data(":root[data-theme=\"light\"]".utf8)))
+        XCTAssertNotNil(data.range(of: Data("color-scheme:dark".utf8)))
         XCTAssertNil(data.range(of: Data("Do Not Include".utf8)))
     }
 
