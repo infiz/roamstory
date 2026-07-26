@@ -426,6 +426,14 @@ final class TripSorterTests: XCTestCase {
             title: "Morning",
             text: "Tea < ceremony"
         ))
+        included.placeName = "Fushimi Inari"
+        included.latitude = 34.9671
+        included.longitude = 135.7727
+        included.blocks.append(ContentBlock(
+            type: .map,
+            sortIndex: 1,
+            mapDescription: "Morning walk"
+        ))
 
         let url = try await HtmlExporter.export(
             title: "Japan Notes",
@@ -457,6 +465,10 @@ final class TripSorterTests: XCTestCase {
         XCTAssertNotNil(data.range(of: Data("lightbox.showModal()".utf8)))
         XCTAssertNotNil(data.range(of: Data("showNextLightboxPhoto".utf8)))
         XCTAssertNotNil(data.range(of: Data("touchend".utf8)))
+        XCTAssertNotNil(data.range(of: Data("openstreetmap.org/export/embed.html".utf8)))
+        XCTAssertNotNil(data.range(of: Data("marker=34.967100%2C135.772700".utf8)))
+        XCTAssertNotNil(data.range(of: Data(">Open map</a>".utf8)))
+        XCTAssertNotNil(data.range(of: Data("Morning walk".utf8)))
         XCTAssertNil(data.range(of: Data("Do Not Include".utf8)))
     }
 
