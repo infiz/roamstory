@@ -22,6 +22,7 @@
 		10000000000000000000010E /* HtmlExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* HtmlExporter.swift */; };
 		10000000000000000000010F /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000012 /* AuthenticationService.swift */; };
 		100000000000000000000117 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* SetupView.swift */; };
+		100000000000000000000118 /* PublishingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000016 /* PublishingService.swift */; };
 		100000000000000000000113 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000801 /* GoogleSignIn */; };
 		100000000000000000000114 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000802 /* GoogleSignInSwift */; };
 		100000000000000000000115 /* FacebookCore in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000803 /* FacebookCore */; };
@@ -59,6 +60,7 @@
 		100000000000000000000013 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		100000000000000000000014 /* RoamStory.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RoamStory.entitlements; sourceTree = "<group>"; };
 		100000000000000000000015 /* Authentication.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Authentication.xcconfig; sourceTree = "<group>"; };
+		100000000000000000000016 /* PublishingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishingService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,6 +113,7 @@
 				100000000000000000000011 /* HtmlExporter.swift */,
 				100000000000000000000012 /* AuthenticationService.swift */,
 				100000000000000000000013 /* SetupView.swift */,
+				100000000000000000000016 /* PublishingService.swift */,
 				100000000000000000000014 /* RoamStory.entitlements */,
 				100000000000000000000009 /* Info.plist */,
 			);
@@ -270,6 +273,7 @@
 				10000000000000000000010D /* DocxExporter.swift in Sources */,
 				10000000000000000000010E /* HtmlExporter.swift in Sources */,
 				10000000000000000000010F /* AuthenticationService.swift in Sources */,
+				100000000000000000000118 /* PublishingService.swift in Sources */,
 				100000000000000000000117 /* SetupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

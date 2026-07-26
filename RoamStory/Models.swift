@@ -142,6 +142,13 @@ final class Trip {
     var modifiedAt: Date
     var startDate: Date?
     var endDate: Date?
+    var publishedOwnerAccountID: UUID?
+    var publishedTripID: UUID?
+    var publicationID: UUID?
+    var publishedRevisionID: UUID?
+    var publishedVersion: Int64?
+    var publishedURLString: String?
+    var publishedAt: Date?
 
     @Relationship(deleteRule: .cascade, inverse: \TripSection.trip)
     var sections: [TripSection]
@@ -164,6 +171,11 @@ final class Trip {
         self.startDate = startDate?.alignedToHour
         self.endDate = endDate?.alignedToHour
         self.sections = sections
+    }
+
+    var publishedURL: URL? {
+        guard let publishedURLString else { return nil }
+        return URL(string: publishedURLString)
     }
 
     var orderedSections: [TripSection] {
