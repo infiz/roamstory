@@ -19,6 +19,7 @@ struct TripEditorView: View {
     @State private var publishedURL: URL?
     @State private var isShowingAccountMismatch = false
     @State private var pendingPublishConfirmation: PublishConfirmation?
+    @State private var isShowingNoRepublishRequired = false
 
     var body: some View {
         List {
@@ -286,9 +287,14 @@ struct TripEditorView: View {
                 confirmation: $pendingPublishConfirmation,
                 isRepublish: trip.publicationID != nil
             ) { confirmation in
-                Task { await publishTrip(preparedMedia: confirmation.preparedMedia) }
+                Task { await publishTrip(confirmation: confirmation) }
             }
         )
+        .alert("No Republish Required", isPresented: $isShowingNoRepublishRequired) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The published trip already matches this trip and all media is up to date.")
+        }
         .alert("Trip Published", isPresented: Binding(
             get: { publishedURL != nil },
             set: { if !$0 { publishedURL = nil } }
@@ -361,19 +367,40 @@ struct TripEditorView: View {
                     ($0.localMedia.referenceID, $0.upload.mediaUuid)
                 }
             )
-            let request = PublishTripRequest(trip: trip, mediaUuids: mediaUuids)
-            pendingPublishConfirmation = PublishConfirmation(
-                preparedMedia: preparedMedia,
-                tripDataByteCount: try request.encodedByteCount()
+            let mediaMetadata = Dictionary(
+                uniqueKeysWithValues: preparedMedia.compactMap { item in
+                    item.localMedia.metadata.map {
+                        (item.localMedia.referenceID, $0)
+                    }
+                }
             )
+            let request = PublishTripRequest(
+                trip: trip,
+                mediaUuids: mediaUuids,
+                mediaMetadata: mediaMetadata
+            )
+            let contentFingerprint = try request.contentFingerprint()
+            let confirmation = PublishConfirmation(
+                preparedMedia: preparedMedia,
+                tripDataByteCount: try request.encodedByteCount(),
+                contentFingerprint: contentFingerprint
+            )
+            if trip.publicationID != nil,
+               trip.publishedContentFingerprint == contentFingerprint,
+               !preparedMedia.contains(where: \.upload.uploadRequired) {
+                isShowingNoRepublishRequired = true
+            } else {
+                pendingPublishConfirmation = confirmation
+            }
         } catch {
             publishErrorMessage = error.localizedDescription
         }
     }
 
     @MainActor
-    private func publishTrip(preparedMedia: [PreparedPublishMedia]) async {
+    private func publishTrip(confirmation: PublishConfirmation) async {
         guard !isPublishing else { return }
+        let preparedMedia = confirmation.preparedMedia
         isPublishing = true
         publishingMessage = trip.publicationID == nil ? "Publishing trip…" : "Publishing update…"
         defer {
@@ -394,9 +421,19 @@ struct TripEditorView: View {
                 mediaUuids[item.localMedia.referenceID] = item.upload.mediaUuid
             }
             publishingMessage = trip.publicationID == nil ? "Publishing trip…" : "Publishing update…"
-            let result = try await authentication.publish(
-                PublishTripRequest(trip: trip, mediaUuids: mediaUuids)
+            let mediaMetadata = Dictionary(
+                uniqueKeysWithValues: preparedMedia.compactMap { item in
+                    item.localMedia.metadata.map {
+                        (item.localMedia.referenceID, $0)
+                    }
+                }
             )
+            let request = PublishTripRequest(
+                trip: trip,
+                mediaUuids: mediaUuids,
+                mediaMetadata: mediaMetadata
+            )
+            let result = try await authentication.publish(request)
             trip.publishedOwnerAccountID = result.ownerAccountUuid
             trip.publishedTripID = result.tripUuid
             trip.publicationID = result.publicationUuid
@@ -404,6 +441,7 @@ struct TripEditorView: View {
             trip.publishedVersion = result.version
             trip.publishedURLString = result.publicURL.absoluteString
             trip.publishedAt = result.publishedAt
+            trip.publishedContentFingerprint = confirmation.contentFingerprint
             try modelContext.save()
             publishedURL = result.publicURL
         } catch {
@@ -458,6 +496,7 @@ private struct PreparedPublishMedia {
 private struct PublishConfirmation {
     let preparedMedia: [PreparedPublishMedia]
     let tripDataByteCount: Int64
+    let contentFingerprint: String
 
     private var mediaByteCount: Int64 {
         preparedMedia.reduce(Int64.zero) { total, item in

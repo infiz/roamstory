@@ -149,6 +149,7 @@ final class Trip {
     var publishedVersion: Int64?
     var publishedURLString: String?
     var publishedAt: Date?
+    var publishedContentFingerprint: String?
 
     @Relationship(deleteRule: .cascade, inverse: \TripSection.trip)
     var sections: [TripSection]

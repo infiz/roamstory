@@ -2013,6 +2013,15 @@ private struct FullScreenGalleryView: View {
         .onChange(of: galleryPageIndex) { _, pageIndex in
             updateFullScreenGallerySelection(for: pageIndex)
         }
+        .onChange(of: isAutoPlaying) { _, isPlaying in
+            if !isPlaying {
+                clearFullScreenSlideshowTransition()
+            }
+        }
+        .onDisappear {
+            isAutoPlaying = false
+            clearFullScreenSlideshowTransition()
+        }
         .task(id: selectedReferenceID) {
             guard references.indices.contains(selectedIndex) else {
                 metadata = nil
@@ -2068,25 +2077,35 @@ private struct FullScreenGalleryView: View {
                 return
             }
             automaticCaptionIndex = automaticTransition?.toIndex
-            withAnimation(.easeInOut(duration: galleryAutomaticTransitionDuration)) {
+            withAnimation(.smooth(duration: gallerySectionTransitionDuration)) {
                 hasAdvancedAutomaticTransition = true
             }
             do {
-                try await Task.sleep(for: .seconds(galleryAutomaticTransitionDuration))
+                try await Task.sleep(for: .seconds(gallerySectionTransitionDuration))
             } catch {
                 automaticTransition = nil
                 return
             }
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                galleryPageIndex += 1
+            let completedTransition = automaticTransition
+            Task { @MainActor in
+                guard isAutoPlaying else {
+                    clearFullScreenSlideshowTransition()
+                    return
+                }
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    galleryPageIndex += 1
+                }
+
+                // Match the section gallery: keep the preloaded destination over
+                // the pager until its selected page has rendered from cache.
+                try? await Task.sleep(for: .milliseconds(100))
+                guard automaticTransition?.toIndex == completedTransition?.toIndex else {
+                    return
+                }
+                clearFullScreenSlideshowTransition()
             }
-            automaticTransition = nil
-            isAutomaticTransitionVisible = false
-            hasAdvancedAutomaticTransition = false
-            automaticTransitionReadyIndices = []
-            automaticCaptionIndex = nil
         }
     }
 
@@ -2122,33 +2141,48 @@ private struct FullScreenGalleryView: View {
         return references.indices.contains(captionIndex) ? references[captionIndex].caption : ""
     }
 
-    private var galleryPhotos: some View {
-        ZStack {
-            TabView(selection: $galleryPageIndex) {
-                ForEach(
-                    Array(loopingGalleryIndices(count: references.count).enumerated()),
-                    id: \.offset
-                ) { pageIndex, photoIndex in
-                    let reference = references[photoIndex]
-                    PhotoAssetView(
-                        reference: reference,
-                        fitEntireImage: true,
-                        backgroundColor: .black
-                    )
-                    .tag(pageIndex)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+    private func clearFullScreenSlideshowTransition() {
+        automaticTransition = nil
+        isAutomaticTransitionVisible = false
+        hasAdvancedAutomaticTransition = false
+        automaticTransitionReadyIndices = []
+        automaticCaptionIndex = nil
+    }
 
-            if let automaticTransition {
-                GalleryAutomaticTransitionView(
-                    references: references,
-                    transition: automaticTransition,
-                    hasAdvanced: hasAdvancedAutomaticTransition,
-                    onPhotoReady: { automaticTransitionReadyIndices.insert($0) }
-                )
-                .opacity(isAutomaticTransitionVisible ? 1 : 0)
-                .allowsHitTesting(false)
+    private var galleryPhotos: some View {
+        GeometryReader { geometry in
+            ZStack {
+                TabView(selection: $galleryPageIndex) {
+                    ForEach(
+                        Array(loopingGalleryIndices(count: references.count).enumerated()),
+                        id: \.offset
+                    ) { pageIndex, photoIndex in
+                        let reference = references[photoIndex]
+                        PhotoAssetView(
+                            reference: reference,
+                            fitEntireImage: true,
+                            backgroundColor: .black
+                        )
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .tag(pageIndex)
+                    }
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .tabViewStyle(.page(indexDisplayMode: .never))
+
+                if let automaticTransition {
+                    GalleryAutomaticTransitionView(
+                        references: references,
+                        transition: automaticTransition,
+                        hasAdvanced: hasAdvancedAutomaticTransition,
+                        onPhotoReady: { automaticTransitionReadyIndices.insert($0) }
+                    )
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+                    .compositingGroup()
+                    .opacity(isAutomaticTransitionVisible ? 1 : 0)
+                    .allowsHitTesting(false)
+                }
             }
         }
     }
@@ -2160,7 +2194,6 @@ private struct GalleryAutomaticTransition {
 }
 
 private let gallerySectionTransitionDuration = 0.7
-private let galleryAutomaticTransitionDuration = 0.55
 
 private struct GalleryAutomaticTransitionView: View {
     let references: [MediaReference]
@@ -2235,13 +2268,19 @@ private struct GalleryPageIndicator: View {
 }
 
 private func landscapeSidebarWidth(for availableWidth: CGFloat) -> CGFloat {
-    min(max(availableWidth * 0.30, 260), 340)
+    guard availableWidth.isFinite, availableWidth > 0 else {
+        return 260
+    }
+    return min(max(availableWidth * 0.30, 260), 340)
 }
 
 private let collapsedPanelThickness: CGFloat = 34
 
 private func portraitPanelHeight(for availableHeight: CGFloat) -> CGFloat {
-    min(150, availableHeight * 0.24)
+    guard availableHeight.isFinite, availableHeight > 0 else {
+        return collapsedPanelThickness
+    }
+    return max(collapsedPanelThickness, min(150, availableHeight * 0.24))
 }
 
 private struct CollapsibleLandscapePhotoPanel: View {

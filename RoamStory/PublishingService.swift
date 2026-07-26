@@ -79,6 +79,11 @@ struct PublishMediaSnapshot: Encodable {
     let provider: String
     let originalFilename: String
     let caption: String
+    let takenAt: Date?
+    let timeZoneIdentifier: String?
+    let byteSize: Int64?
+    let pixelWidth: Int?
+    let pixelHeight: Int?
 
     enum CodingKeys: String, CodingKey {
         case uuid = "uuid"
@@ -88,6 +93,11 @@ struct PublishMediaSnapshot: Encodable {
         case provider = "provider"
         case originalFilename = "originalFilename"
         case caption = "caption"
+        case takenAt = "takenAt"
+        case timeZoneIdentifier = "timeZoneIdentifier"
+        case byteSize = "byteSize"
+        case pixelWidth = "pixelWidth"
+        case pixelHeight = "pixelHeight"
     }
 }
 
@@ -118,6 +128,7 @@ struct LocalPublishMedia {
     let data: Data
     let sha256: String
     let contentType: String
+    let metadata: PhotoAssetMetadata?
 
     static func load(_ references: [MediaReference]) async throws -> [LocalPublishMedia] {
         var result: [LocalPublishMedia] = []
@@ -153,12 +164,16 @@ struct LocalPublishMedia {
             let fileExtension = URL(fileURLWithPath: resource.originalFilename).pathExtension
             let contentType = UTType(filenameExtension: fileExtension)?.preferredMIMEType
                 ?? (reference.kind == .video ? "video/quicktime" : "image/jpeg")
+            let metadata = reference.kind == .image
+                ? await PhotoAssetMetadataLoader.load(reference: reference)
+                : nil
             result.append(
                 LocalPublishMedia(
                     referenceID: reference.id,
                     data: data,
                     sha256: digest,
-                    contentType: contentType
+                    contentType: contentType,
+                    metadata: metadata
                 )
             )
         }
@@ -193,7 +208,29 @@ extension PublishTripRequest {
         return Int64(try encoder.encode(self).count)
     }
 
-    init(trip: Trip, mediaUuids: [UUID: UUID]) {
+    func contentFingerprint() throws -> String {
+        let content = PublishTripRequest(
+            tripUuid: tripUuid,
+            expectedVersion: nil,
+            title: title,
+            subtitle: subtitle,
+            startAt: startAt,
+            endAt: endAt,
+            sections: sections
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
+        return SHA256.hash(data: try encoder.encode(content))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
+    init(
+        trip: Trip,
+        mediaUuids: [UUID: UUID],
+        mediaMetadata: [UUID: PhotoAssetMetadata] = [:]
+    ) {
         self.init(
             tripUuid: trip.id,
             expectedVersion: trip.publishedVersion,
@@ -233,6 +270,7 @@ extension PublishTripRequest {
                             media: block.orderedMediaReferences.enumerated().compactMap {
                                 mediaIndex, reference in
                                 guard let mediaUuid = mediaUuids[reference.id] else { return nil }
+                                let metadata = mediaMetadata[reference.id]
                                 return PublishMediaSnapshot(
                                     uuid: reference.id,
                                     mediaUuid: mediaUuid,
@@ -240,7 +278,12 @@ extension PublishTripRequest {
                                     kind: reference.kind.rawValue,
                                     provider: reference.provider,
                                     originalFilename: reference.originalFilename,
-                                    caption: reference.caption
+                                    caption: reference.caption,
+                                    takenAt: metadata?.takenAt,
+                                    timeZoneIdentifier: metadata?.timeZone.identifier,
+                                    byteSize: metadata?.byteCount,
+                                    pixelWidth: metadata?.pixelWidth,
+                                    pixelHeight: metadata?.pixelHeight
                                 )
                             }
                         )
