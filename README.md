@@ -34,6 +34,16 @@ xcodebuild -project RoamStory.xcodeproj \
   test
 ```
 
+Install the repository checks after cloning:
+
+```sh
+pre-commit install
+pre-commit run --all-files
+```
+
+The app hook checks common file hygiene and builds the arm64 iOS Simulator
+target without code signing.
+
 Before provider login works, configure the Google and Facebook build settings
 shown in the server repository's `docs/AUTHENTICATION_SETUP.md` and enable Sign
 in with Apple for bundle ID `com.infiz.roamstory`. A development build with
