@@ -20,6 +20,12 @@
 		10000000000000000000010C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000F /* Assets.xcassets */; };
 		10000000000000000000010D /* DocxExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000010 /* DocxExporter.swift */; };
 		10000000000000000000010E /* HtmlExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* HtmlExporter.swift */; };
+		10000000000000000000010F /* AuthenticationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000012 /* AuthenticationService.swift */; };
+		100000000000000000000117 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* SetupView.swift */; };
+		100000000000000000000113 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000801 /* GoogleSignIn */; };
+		100000000000000000000114 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000802 /* GoogleSignInSwift */; };
+		100000000000000000000115 /* FacebookCore in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000803 /* FacebookCore */; };
+		100000000000000000000116 /* FacebookLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000804 /* FacebookLogin */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,6 +55,10 @@
 		10000000000000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		100000000000000000000010 /* DocxExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocxExporter.swift; sourceTree = "<group>"; };
 		100000000000000000000011 /* HtmlExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HtmlExporter.swift; sourceTree = "<group>"; };
+		100000000000000000000012 /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
+		100000000000000000000013 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
+		100000000000000000000014 /* RoamStory.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RoamStory.entitlements; sourceTree = "<group>"; };
+		100000000000000000000015 /* Authentication.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Authentication.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,6 +66,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				100000000000000000000113 /* GoogleSignIn in Frameworks */,
+				100000000000000000000114 /* GoogleSignInSwift in Frameworks */,
+				100000000000000000000115 /* FacebookCore in Frameworks */,
+				100000000000000000000116 /* FacebookLogin in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +91,7 @@
 				100000000000000000000120 /* RoamStoryTests */,
 				100000000000000000000130 /* Frameworks */,
 				100000000000000000000140 /* Products */,
+				100000000000000000000150 /* Config */,
 			);
 			sourceTree = "<group>";
 		};
@@ -94,6 +109,9 @@
 				10000000000000000000000F /* Assets.xcassets */,
 				100000000000000000000010 /* DocxExporter.swift */,
 				100000000000000000000011 /* HtmlExporter.swift */,
+				100000000000000000000012 /* AuthenticationService.swift */,
+				100000000000000000000013 /* SetupView.swift */,
+				100000000000000000000014 /* RoamStory.entitlements */,
 				100000000000000000000009 /* Info.plist */,
 			);
 			path = RoamStory;
@@ -124,6 +142,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		100000000000000000000150 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000015 /* Authentication.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -140,6 +166,12 @@
 			dependencies = (
 			);
 			name = RoamStory;
+			packageProductDependencies = (
+				100000000000000000000801 /* GoogleSignIn */,
+				100000000000000000000802 /* GoogleSignInSwift */,
+				100000000000000000000803 /* FacebookCore */,
+				100000000000000000000804 /* FacebookLogin */,
+			);
 			productName = RoamStory;
 			productReference = 10000000000000000000000A /* RoamStory.app */;
 			productType = "com.apple.product-type.application";
@@ -190,6 +222,10 @@
 				Base,
 			);
 			mainGroup = 100000000000000000000100;
+			packageReferences = (
+				100000000000000000000901 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				100000000000000000000902 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */,
+			);
 			productRefGroup = 100000000000000000000140 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -233,6 +269,8 @@
 				10000000000000000000010B /* RichTextEditor.swift in Sources */,
 				10000000000000000000010D /* DocxExporter.swift in Sources */,
 				10000000000000000000010E /* HtmlExporter.swift in Sources */,
+				10000000000000000000010F /* AuthenticationService.swift in Sources */,
+				100000000000000000000117 /* SetupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -283,15 +321,21 @@
 		};
 		100000000000000000000711 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 100000000000000000000015 /* Authentication.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = RoamStory/RoamStory.entitlements;
 				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = N6386GYZVJ;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RoamStory/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.infiz.roamstory;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -305,14 +349,20 @@
 		};
 		100000000000000000000712 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 100000000000000000000015 /* Authentication.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = RoamStory/RoamStory.entitlements;
 				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = N6386GYZVJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RoamStory/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.infiz.roamstory;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -329,6 +379,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.roamstory.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -343,6 +394,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.roamstory.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -381,6 +433,48 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		100000000000000000000901 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+		100000000000000000000902 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/facebook/facebook-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 18.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		100000000000000000000801 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 100000000000000000000901 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		100000000000000000000802 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 100000000000000000000901 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+		100000000000000000000803 /* FacebookCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 100000000000000000000902 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookCore;
+		};
+		100000000000000000000804 /* FacebookLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 100000000000000000000902 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookLogin;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 100000000000000000000500 /* Project object */;
 }
