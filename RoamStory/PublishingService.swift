@@ -228,9 +228,11 @@ extension PublishTripRequest {
 
     init(
         trip: Trip,
+        selectedSections: [TripSection]? = nil,
         mediaUuids: [UUID: UUID],
         mediaMetadata: [UUID: PhotoAssetMetadata] = [:]
     ) {
+        let sectionsToPublish = selectedSections ?? trip.orderedSections
         self.init(
             tripUuid: trip.id,
             expectedVersion: trip.publishedVersion,
@@ -238,7 +240,7 @@ extension PublishTripRequest {
             subtitle: trip.subtitle,
             startAt: trip.startDate,
             endAt: trip.endDate,
-            sections: trip.orderedSections.enumerated().map { sectionIndex, section in
+            sections: sectionsToPublish.enumerated().map { sectionIndex, section in
                 PublishSectionSnapshot(
                     uuid: section.id,
                     position: sectionIndex,

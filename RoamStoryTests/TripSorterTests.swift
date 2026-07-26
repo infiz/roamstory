@@ -548,4 +548,30 @@ final class TripSorterTests: XCTestCase {
             try request(version: 2, title: "Kyoto").contentFingerprint()
         )
     }
+
+    func testPublishingRequestIncludesOnlySelectedSections() throws {
+        let included = TripSection(title: "Ready", sortIndex: 0)
+        let unfinished = TripSection(title: "Unfinished", sortIndex: 1)
+        let trip = Trip(title: "Japan", sections: [included, unfinished])
+
+        let request = PublishTripRequest(
+            trip: trip,
+            selectedSections: [included],
+            mediaUuids: [:]
+        )
+
+        XCTAssertEqual(request.sections.map(\.uuid), [included.id])
+        XCTAssertEqual(request.sections.map(\.position), [0])
+        XCTAssertFalse(try request.contentFingerprint().isEmpty)
+    }
+
+    func testPublishedSectionSelectionRoundTrips() {
+        let trip = Trip(title: "Japan")
+        let first = UUID()
+        let second = UUID()
+
+        trip.publishedSectionIDs = [first, second]
+
+        XCTAssertEqual(trip.publishedSectionIDs, [first, second])
+    }
 }

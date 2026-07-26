@@ -233,13 +233,14 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | FR-070B | P0 | DOCX output is a valid WordprocessingML package containing section and block structure, text, captions, Photos-backed image/gallery content when available, video poster frames, photo links, and map location details. |
 | FR-070C | P0 | Export generation reports progress, prevents exporting an empty selection, handles unavailable media with a placeholder, and presents the standard iOS share sheet after a valid DOCX is generated. |
 | FR-070D | P0 | Offline HTML export is available for the current section, the whole trip, or selected trip sections. It produces a ZIP whose root contains `index.html` and an `assets/` directory. |
-| FR-070E | P0 | The HTML ZIP includes local CSS, Photos-backed images and galleries, playable video files with poster frames, static map snapshots and coordinates, captions, links, and accessible text fallbacks. It must not require RoamStory or a network connection after extraction, except when an author-added external link is opened. |
+| FR-070E | P0 | The HTML ZIP includes local CSS, Photos-backed images and galleries, playable video files with poster frames, interactive OpenStreetMap embeds and coordinates, captions, links, and accessible text fallbacks. It does not require RoamStory after extraction; maps and author-added external links require a network connection. |
 | FR-071 | P0 | Export offers at least theme, page size (where applicable), image-quality preset, and inclusion of location metadata. |
 | FR-072 | P0 | Export runs from an immutable document snapshot so editing can continue safely. |
 | FR-073 | P0 | The app reports progress and supports cancellation without leaving a partial file at the chosen destination. |
 | FR-074 | P0 | HTML export is self-contained and can include local CSS, JavaScript, images, video, maps rendered from included data, and accessible fallbacks. |
 | FR-075 | P0 | PDF and DOCX define a fallback for every V1 block type. |
 | FR-076 | P1 | The user can publish to a private unlisted link or a public page. |
+| FR-076A | P0 | Before publishing or republishing, the user selects one or more trip sections. Only selected sections and their media are included, selected sections preserve trip order, and the last successful selection becomes the default for the next republish. |
 | FR-077 | P1 | Republishing creates a new immutable revision and does not modify the local canonical trip. |
 | FR-078 | P1 | The user can unpublish a revision and see its sharing status in the app. |
 

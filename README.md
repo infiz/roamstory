@@ -19,6 +19,8 @@ The first SwiftUI/SwiftData version includes:
 - a Setup screen with Google, Apple, and Facebook login against
   `https://roamstory.infiz.com`, Keychain-backed RoamStory sessions, and logout
   that leaves local trip data untouched;
+- publishing and republishing a user-selected subset of trip sections, with
+  incremental media uploads and a shareable web link;
 - Word-compatible DOCX and offline HTML ZIP export for a section, a whole trip, or selected trip sections; and
 - focused unit tests for sorting, SwiftData cascade deletion, media ordering, date ranges, links, and DOCX packaging.
 
