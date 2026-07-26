@@ -478,4 +478,26 @@ final class TripSorterTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<TripSection>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ContentBlock>()), 0)
     }
+
+    func testPublishingJSONUsesExplicitUuidFieldNames() throws {
+        let tripUuid = UUID()
+        let request = PublishTripRequest(
+            tripUuid: tripUuid,
+            expectedVersion: nil,
+            title: "Japan",
+            subtitle: "",
+            startAt: nil,
+            endAt: nil,
+            sections: []
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(request))
+                as? [String: Any]
+        )
+
+        XCTAssertEqual(object["tripUuid"] as? String, tripUuid.uuidString)
+        XCTAssertNil(object["tripUUID"])
+        XCTAssertNil(object["trip_uuid"])
+        XCTAssertGreaterThan(try request.encodedByteCount(), 0)
+    }
 }

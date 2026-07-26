@@ -3,6 +3,8 @@ import SwiftUI
 
 struct TripEditorView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
+    @EnvironmentObject private var authentication: AuthenticationStore
     @Bindable var trip: Trip
 
     @State private var isEditingTrip = false
@@ -11,6 +13,12 @@ struct TripEditorView: View {
     @State private var isExportingHTML = false
     @State private var sectionBeingEdited: TripSection?
     @State private var sectionPendingDeletion: TripSection?
+    @State private var isPublishing = false
+    @State private var publishingMessage: String?
+    @State private var publishErrorMessage: String?
+    @State private var publishedURL: URL?
+    @State private var isShowingAccountMismatch = false
+    @State private var pendingPublishConfirmation: PublishConfirmation?
 
     var body: some View {
         List {
@@ -35,6 +43,13 @@ struct TripEditorView: View {
                 .environment(\.defaultMinListRowHeight, 0)
                 .accessibilityLabel(
                     "Trip dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
+                )
+            }
+
+            if let publishedURL = trip.publishedURL {
+                PublishedTripLinkRow(
+                    tripTitle: trip.title,
+                    url: publishedURL
                 )
             }
 
@@ -175,6 +190,26 @@ struct TripEditorView: View {
                     } label: {
                         Label("Export HTML Package", systemImage: "archivebox")
                     }
+                    Divider()
+                    Button {
+                        beginPublishing()
+                    } label: {
+                        Label(
+                            trip.publicationID == nil ? "Publish Trip" : "Republish Trip",
+                            systemImage: "icloud.and.arrow.up"
+                        )
+                    }
+                    .disabled(isPublishing)
+                    if let url = trip.publishedURL {
+                        Button {
+                            openURL(url)
+                        } label: {
+                            Label("Open Published Trip", systemImage: "safari")
+                        }
+                        ShareLink(item: url) {
+                            Label("Share Published Link", systemImage: "square.and.arrow.up")
+                        }
+                    }
                 } label: {
                     Label("Trip Actions", systemImage: "ellipsis.circle")
                 }
@@ -203,6 +238,20 @@ struct TripEditorView: View {
                 allowsSelection: true
             )
         }
+        .overlay {
+            if isPublishing {
+                ZStack {
+                    Color.black.opacity(0.2).ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text(publishingMessage ?? "Publishing…")
+                            .font(.headline)
+                    }
+                    .padding(24)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+        }
         .alert(
             "Delete Section?",
             isPresented: Binding(
@@ -221,6 +270,46 @@ struct TripEditorView: View {
         } message: { section in
             Text("“\(section.title)” and its content will be removed.")
         }
+        .alert(
+            "Unable to Publish",
+            isPresented: Binding(
+                get: { publishErrorMessage != nil },
+                set: { if !$0 { publishErrorMessage = nil } }
+            )
+        ) {
+            Button("OK") { publishErrorMessage = nil }
+        } message: {
+            Text(publishErrorMessage ?? "")
+        }
+        .modifier(
+            PublishConfirmationModifier(
+                confirmation: $pendingPublishConfirmation,
+                isRepublish: trip.publicationID != nil
+            ) { confirmation in
+                Task { await publishTrip(preparedMedia: confirmation.preparedMedia) }
+            }
+        )
+        .alert("Trip Published", isPresented: Binding(
+            get: { publishedURL != nil },
+            set: { if !$0 { publishedURL = nil } }
+        )) {
+            if let publishedURL {
+                Button("Open") { openURL(publishedURL) }
+                Button("Copy Link") {
+                    UIPasteboard.general.string = publishedURL.absoluteString
+                }
+            }
+            Button("Done", role: .cancel) { publishedURL = nil }
+        } message: {
+            Text("The latest version is available through its web link.")
+        }
+        .alert("Trip Linked to Another Account", isPresented: $isShowingAccountMismatch) {
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "This trip is linked to another RoamStory account. Sign in to that account to republish it. Secure account transfer will be added in the account-transfer phase."
+            )
+        }
     }
 
     private func moveSections(from source: IndexSet, to destination: Int) {
@@ -232,6 +321,194 @@ struct TripEditorView: View {
         trip.touch()
     }
 
+    private func beginPublishing() {
+        guard let account = authentication.account else {
+            publishErrorMessage = "Sign in from Setup before publishing this trip."
+            return
+        }
+        if let owner = trip.publishedOwnerAccountID, owner != account.id {
+            isShowingAccountMismatch = true
+            return
+        }
+        Task { await preparePublishConfirmation() }
+    }
+
+    @MainActor
+    private func preparePublishConfirmation() async {
+        guard !isPublishing else { return }
+        isPublishing = true
+        publishingMessage = "Calculating upload size…"
+        defer {
+            publishingMessage = nil
+            isPublishing = false
+        }
+
+        do {
+            let references = trip.orderedSections
+                .flatMap(\.orderedBlocks)
+                .flatMap(\.orderedMediaReferences)
+            let localMedia = try await LocalPublishMedia.load(references)
+            var preparedMedia: [PreparedPublishMedia] = []
+            for (index, media) in localMedia.enumerated() {
+                publishingMessage = "Checking media \(index + 1) of \(localMedia.count)…"
+                let prepared = try await authentication.prepareMedia(media)
+                preparedMedia.append(
+                    PreparedPublishMedia(localMedia: media, upload: prepared)
+                )
+            }
+            let mediaUuids = Dictionary(
+                uniqueKeysWithValues: preparedMedia.map {
+                    ($0.localMedia.referenceID, $0.upload.mediaUuid)
+                }
+            )
+            let request = PublishTripRequest(trip: trip, mediaUuids: mediaUuids)
+            pendingPublishConfirmation = PublishConfirmation(
+                preparedMedia: preparedMedia,
+                tripDataByteCount: try request.encodedByteCount()
+            )
+        } catch {
+            publishErrorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func publishTrip(preparedMedia: [PreparedPublishMedia]) async {
+        guard !isPublishing else { return }
+        isPublishing = true
+        publishingMessage = trip.publicationID == nil ? "Publishing trip…" : "Publishing update…"
+        defer {
+            publishingMessage = nil
+            isPublishing = false
+        }
+
+        do {
+            var mediaUuids: [UUID: UUID] = [:]
+            for (index, item) in preparedMedia.enumerated() {
+                if item.upload.uploadRequired {
+                    publishingMessage = "Uploading media \(index + 1) of \(preparedMedia.count)…"
+                    try await authentication.uploadMedia(
+                        item.localMedia,
+                        to: item.upload.mediaUuid
+                    )
+                }
+                mediaUuids[item.localMedia.referenceID] = item.upload.mediaUuid
+            }
+            publishingMessage = trip.publicationID == nil ? "Publishing trip…" : "Publishing update…"
+            let result = try await authentication.publish(
+                PublishTripRequest(trip: trip, mediaUuids: mediaUuids)
+            )
+            trip.publishedOwnerAccountID = result.ownerAccountUuid
+            trip.publishedTripID = result.tripUuid
+            trip.publicationID = result.publicationUuid
+            trip.publishedRevisionID = result.revisionUuid
+            trip.publishedVersion = result.version
+            trip.publishedURLString = result.publicURL.absoluteString
+            trip.publishedAt = result.publishedAt
+            try modelContext.save()
+            publishedURL = result.publicURL
+        } catch {
+            publishErrorMessage = error.localizedDescription
+        }
+    }
+
+}
+
+private struct PublishedTripLinkRow: View {
+    @Environment(\.openURL) private var openURL
+
+    let tripTitle: String
+    let url: URL
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button {
+                openURL(url)
+            } label: {
+                Label("Published Trip", systemImage: "checkmark.icloud")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the published trip in your browser")
+
+            Spacer()
+
+            ShareLink(
+                item: url,
+                subject: Text(tripTitle),
+                message: Text("View my RoamStory trip: \(tripTitle)")
+            ) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.headline)
+                    .frame(width: 44, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Share published trip")
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct PreparedPublishMedia {
+    let localMedia: LocalPublishMedia
+    let upload: PreparedMediaUpload
+}
+
+private struct PublishConfirmation {
+    let preparedMedia: [PreparedPublishMedia]
+    let tripDataByteCount: Int64
+
+    private var mediaByteCount: Int64 {
+        preparedMedia.reduce(Int64.zero) { total, item in
+            guard item.upload.uploadRequired else { return total }
+            return total + Int64(item.localMedia.data.count)
+        }
+    }
+
+    var formattedTotalSize: String {
+        ByteCountFormatter.string(
+            fromByteCount: tripDataByteCount + mediaByteCount,
+            countStyle: .file
+        )
+    }
+
+    var formattedTripDataSize: String {
+        ByteCountFormatter.string(fromByteCount: tripDataByteCount, countStyle: .file)
+    }
+
+    var formattedMediaSize: String {
+        ByteCountFormatter.string(fromByteCount: mediaByteCount, countStyle: .file)
+    }
+}
+
+private struct PublishConfirmationModifier: ViewModifier {
+    @Binding var confirmation: PublishConfirmation?
+    let isRepublish: Bool
+    let onConfirm: (PublishConfirmation) -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(
+            isRepublish ? "Republish Trip?" : "Publish Trip?",
+            isPresented: Binding(
+                get: { confirmation != nil },
+                set: { if !$0 { confirmation = nil } }
+            ),
+            presenting: confirmation
+        ) { pending in
+            Button(isRepublish ? "Republish" : "Publish") {
+                confirmation = nil
+                onConfirm(pending)
+            }
+            Button("Cancel", role: .cancel) {
+                confirmation = nil
+            }
+        } message: { pending in
+            Text(
+                "RoamStory will upload \(pending.formattedTotalSize): \(pending.formattedTripDataSize) of trip, section, and block data plus \(pending.formattedMediaSize) of new or changed media. Continue?"
+            )
+        }
+    }
 }
 
 private struct SectionNavigationButtonStyle: ButtonStyle {
