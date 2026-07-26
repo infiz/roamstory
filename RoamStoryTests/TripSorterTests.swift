@@ -429,6 +429,8 @@ final class TripSorterTests: XCTestCase {
         included.placeName = "Fushimi Inari"
         included.latitude = 34.9671
         included.longitude = 135.7727
+        included.startDate = Date(timeIntervalSince1970: 1_704_067_200)
+        included.endDate = Date(timeIntervalSince1970: 1_704_070_800)
         included.blocks.append(ContentBlock(
             type: .map,
             sortIndex: 1,
@@ -472,7 +474,26 @@ final class TripSorterTests: XCTestCase {
         XCTAssertNotNil(data.range(of: Data("class=\"theme-toggle\"".utf8)))
         XCTAssertNotNil(data.range(of: Data("roamstory-theme".utf8)))
         XCTAssertNotNil(data.range(of: Data(":root[data-theme=\"light\"]".utf8)))
+        XCTAssertNotNil(data.range(of: Data("<html lang=\"en\" data-theme=\"dark\">".utf8)))
         XCTAssertNotNil(data.range(of: Data("color-scheme:dark".utf8)))
+        XCTAssertNotNil(data.range(of: Data(
+            "section-\(included.id.uuidString.lowercased()).html".utf8
+        )))
+        XCTAssertNotNil(data.range(of: Data("class=\"section-navigation\"".utf8)))
+        XCTAssertNotNil(data.range(of: Data("class=\"section-index\"".utf8)))
+        XCTAssertNotNil(data.range(of: Data("class=\"section-location-link\"".utf8)))
+        XCTAssertNotNil(data.range(of: Data(
+            "openstreetmap.org/?mlat=34.967100&amp;mlon=135.772700".utf8
+        )))
+        XCTAssertNotNil(data.range(of: Data("Food &amp; Drink".utf8)))
+        XCTAssertNotNil(data.range(of: Data("data-start=".utf8)))
+        XCTAssertNotNil(data.range(of: Data("localDateTime.format".utf8)))
+        XCTAssertNotNil(data.range(of: Data("class=\"section-detail-meta\"".utf8)))
+        let packageText = String(decoding: data, as: UTF8.self)
+        XCTAssertGreaterThanOrEqual(
+            packageText.components(separatedBy: "class=\"section-location-link\"").count,
+            3
+        )
         XCTAssertNil(data.range(of: Data("Do Not Include".utf8)))
     }
 
@@ -569,9 +590,15 @@ final class TripSorterTests: XCTestCase {
         let trip = Trip(title: "Japan")
         let first = UUID()
         let second = UUID()
+        trip.publishedURLString = "https://roamstory.example/shares/trip"
 
         trip.publishedSectionIDs = [first, second]
 
         XCTAssertEqual(trip.publishedSectionIDs, [first, second])
+        XCTAssertEqual(
+            trip.publishedSectionURL(for: first)?.absoluteString,
+            "https://roamstory.example/shares/trip/sections/\(first.uuidString.lowercased())"
+        )
+        XCTAssertNil(trip.publishedSectionURL(for: UUID()))
     }
 }

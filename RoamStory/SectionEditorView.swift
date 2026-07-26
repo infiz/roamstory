@@ -33,6 +33,7 @@ struct SectionEditorView: View {
     @State private var isPerformingHistoryAction = false
     @State private var scrollTargetBlockID: UUID?
     @State private var highlightedBlockID: UUID?
+    @State private var isShowingPublishedSectionLink = false
 
     var body: some View {
         List {
@@ -242,6 +243,13 @@ struct SectionEditorView: View {
                     } label: {
                         Label("Export Section as HTML", systemImage: "archivebox")
                     }
+                    if section.trip?.publishedSectionURL(for: section.id) != nil {
+                        Button {
+                            isShowingPublishedSectionLink = true
+                        } label: {
+                            Label("Published Section Link", systemImage: "link")
+                        }
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -328,6 +336,13 @@ struct SectionEditorView: View {
                 sections: [section],
                 allowsSelection: false
             )
+        }
+        .sheet(isPresented: $isShowingPublishedSectionLink) {
+            if let trip = section.trip,
+               let url = trip.publishedSectionURL(for: section.id) {
+                PublishedSectionLinkView(sectionTitle: section.title, url: url)
+                    .presentationDetents([.medium])
+            }
         }
         .alert(
             "Delete Block?",

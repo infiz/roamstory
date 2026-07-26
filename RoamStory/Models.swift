@@ -195,6 +195,16 @@ final class Trip {
         }
     }
 
+    func publishedSectionURL(for sectionID: UUID) -> URL? {
+        guard publishedSectionIDs?.contains(sectionID) == true,
+              let publishedURL else {
+            return nil
+        }
+        return publishedURL
+            .appending(path: "sections")
+            .appending(path: sectionID.uuidString.lowercased())
+    }
+
     var orderedSections: [TripSection] {
         sections.sorted {
             if $0.sortIndex == $1.sortIndex { return $0.createdAt < $1.createdAt }
