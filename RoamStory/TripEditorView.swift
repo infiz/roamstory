@@ -20,6 +20,7 @@ struct TripEditorView: View {
     @State private var isShowingAccountMismatch = false
     @State private var pendingPublishConfirmation: PublishConfirmation?
     @State private var isShowingNoRepublishRequired = false
+    @State private var isSelectingPublishSections = false
 
     var body: some View {
         List {
@@ -239,6 +240,15 @@ struct TripEditorView: View {
                 allowsSelection: true
             )
         }
+        .sheet(isPresented: $isSelectingPublishSections) {
+            PublishSectionSelectionView(
+                sections: trip.orderedSections,
+                initialSelectedSectionIDs: initialPublishSectionIDs,
+                isRepublish: trip.publicationID != nil
+            ) { selectedSectionIDs in
+                Task { await preparePublishConfirmation(sectionIDs: selectedSectionIDs) }
+            }
+        }
         .overlay {
             if isPublishing {
                 ZStack {
@@ -336,12 +346,30 @@ struct TripEditorView: View {
             isShowingAccountMismatch = true
             return
         }
-        Task { await preparePublishConfirmation() }
+        guard !trip.orderedSections.isEmpty else {
+            publishErrorMessage = "Add at least one section before publishing this trip."
+            return
+        }
+        isSelectingPublishSections = true
+    }
+
+    private var initialPublishSectionIDs: Set<UUID> {
+        let availableIDs = Set(trip.orderedSections.map(\.id))
+        guard trip.publicationID != nil, let publishedIDs = trip.publishedSectionIDs else {
+            return availableIDs
+        }
+        let retainedIDs = publishedIDs.intersection(availableIDs)
+        return retainedIDs.isEmpty ? availableIDs : retainedIDs
     }
 
     @MainActor
-    private func preparePublishConfirmation() async {
+    private func preparePublishConfirmation(sectionIDs: Set<UUID>) async {
         guard !isPublishing else { return }
+        let selectedSections = trip.orderedSections.filter { sectionIDs.contains($0.id) }
+        guard !selectedSections.isEmpty else {
+            publishErrorMessage = "Select at least one section to publish."
+            return
+        }
         isPublishing = true
         publishingMessage = "Calculating upload size…"
         defer {
@@ -350,7 +378,7 @@ struct TripEditorView: View {
         }
 
         do {
-            let references = trip.orderedSections
+            let references = selectedSections
                 .flatMap(\.orderedBlocks)
                 .flatMap(\.orderedMediaReferences)
             let localMedia = try await LocalPublishMedia.load(references)
@@ -376,6 +404,7 @@ struct TripEditorView: View {
             )
             let request = PublishTripRequest(
                 trip: trip,
+                selectedSections: selectedSections,
                 mediaUuids: mediaUuids,
                 mediaMetadata: mediaMetadata
             )
@@ -383,7 +412,8 @@ struct TripEditorView: View {
             let confirmation = PublishConfirmation(
                 preparedMedia: preparedMedia,
                 tripDataByteCount: try request.encodedByteCount(),
-                contentFingerprint: contentFingerprint
+                contentFingerprint: contentFingerprint,
+                selectedSectionIDs: sectionIDs
             )
             if trip.publicationID != nil,
                trip.publishedContentFingerprint == contentFingerprint,
@@ -430,6 +460,9 @@ struct TripEditorView: View {
             )
             let request = PublishTripRequest(
                 trip: trip,
+                selectedSections: trip.orderedSections.filter {
+                    confirmation.selectedSectionIDs.contains($0.id)
+                },
                 mediaUuids: mediaUuids,
                 mediaMetadata: mediaMetadata
             )
@@ -442,6 +475,7 @@ struct TripEditorView: View {
             trip.publishedURLString = result.publicURL.absoluteString
             trip.publishedAt = result.publishedAt
             trip.publishedContentFingerprint = confirmation.contentFingerprint
+            trip.publishedSectionIDs = confirmation.selectedSectionIDs
             try modelContext.save()
             publishedURL = result.publicURL
         } catch {
@@ -449,6 +483,95 @@ struct TripEditorView: View {
         }
     }
 
+}
+
+private struct PublishSectionSelectionView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let sections: [TripSection]
+    let isRepublish: Bool
+    let onContinue: (Set<UUID>) -> Void
+
+    @State private var selectedSectionIDs: Set<UUID>
+
+    init(
+        sections: [TripSection],
+        initialSelectedSectionIDs: Set<UUID>,
+        isRepublish: Bool,
+        onContinue: @escaping (Set<UUID>) -> Void
+    ) {
+        self.sections = sections
+        self.isRepublish = isRepublish
+        self.onContinue = onContinue
+        _selectedSectionIDs = State(initialValue: initialSelectedSectionIDs)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    ForEach(sections) { section in
+                        Toggle(isOn: selectionBinding(for: section.id)) {
+                            Label {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(section.title)
+                                    Text(section.formattedDataSize)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: section.kind.systemImage)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Sections to Publish")
+                } footer: {
+                    Text("Unselected sections stay on this device and are not included in the published trip.")
+                }
+
+                Section {
+                    HStack {
+                        Button("Select All") {
+                            selectedSectionIDs = Set(sections.map(\.id))
+                        }
+                        Spacer()
+                        Button("Clear") {
+                            selectedSectionIDs.removeAll()
+                        }
+                    }
+                }
+            }
+            .navigationTitle(isRepublish ? "Republish Trip" : "Publish Trip")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Continue") {
+                        let selection = selectedSectionIDs
+                        dismiss()
+                        onContinue(selection)
+                    }
+                    .disabled(selectedSectionIDs.isEmpty)
+                }
+            }
+        }
+    }
+
+    private func selectionBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { selectedSectionIDs.contains(id) },
+            set: { selected in
+                if selected {
+                    selectedSectionIDs.insert(id)
+                } else {
+                    selectedSectionIDs.remove(id)
+                }
+            }
+        )
+    }
 }
 
 private struct PublishedTripLinkRow: View {
@@ -497,6 +620,7 @@ private struct PublishConfirmation {
     let preparedMedia: [PreparedPublishMedia]
     let tripDataByteCount: Int64
     let contentFingerprint: String
+    let selectedSectionIDs: Set<UUID>
 
     private var mediaByteCount: Int64 {
         preparedMedia.reduce(Int64.zero) { total, item in
@@ -518,6 +642,13 @@ private struct PublishConfirmation {
 
     var formattedMediaSize: String {
         ByteCountFormatter.string(fromByteCount: mediaByteCount, countStyle: .file)
+    }
+
+    var confirmationMessage: String {
+        if mediaByteCount == 0 {
+            return "The selected trip content is \(formattedTripDataSize). No new or changed media needs to be uploaded. Continue?"
+        }
+        return "The selected trip content is \(formattedTripDataSize), with \(formattedMediaSize) of new or changed media, for \(formattedTotalSize) total. Continue?"
     }
 }
 
@@ -543,9 +674,7 @@ private struct PublishConfirmationModifier: ViewModifier {
                 confirmation = nil
             }
         } message: { pending in
-            Text(
-                "RoamStory will upload \(pending.formattedTotalSize): \(pending.formattedTripDataSize) of trip, section, and block data plus \(pending.formattedMediaSize) of new or changed media. Continue?"
-            )
+            Text(pending.confirmationMessage)
         }
     }
 }

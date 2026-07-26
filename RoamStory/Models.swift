@@ -150,6 +150,7 @@ final class Trip {
     var publishedURLString: String?
     var publishedAt: Date?
     var publishedContentFingerprint: String?
+    var publishedSectionIDsData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \TripSection.trip)
     var sections: [TripSection]
@@ -177,6 +178,21 @@ final class Trip {
     var publishedURL: URL? {
         guard let publishedURLString else { return nil }
         return URL(string: publishedURLString)
+    }
+
+    var publishedSectionIDs: Set<UUID>? {
+        get {
+            guard let publishedSectionIDsData,
+                  let ids = try? JSONDecoder().decode([UUID].self, from: publishedSectionIDsData) else {
+                return nil
+            }
+            return Set(ids)
+        }
+        set {
+            publishedSectionIDsData = newValue.flatMap {
+                try? JSONEncoder().encode($0.sorted { $0.uuidString < $1.uuidString })
+            }
+        }
     }
 
     var orderedSections: [TripSection] {
