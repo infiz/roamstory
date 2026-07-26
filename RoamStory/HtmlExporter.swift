@@ -1,4 +1,3 @@
-import MapKit
 import Photos
 import SwiftUI
 import UIKit
@@ -70,6 +69,11 @@ struct HtmlExporter {
             .block > :last-child { margin-bottom:0; }
             .block h3 { margin:0 0 .55rem; }
             .block p { margin:.45rem 0; }
+            .map-card { margin:24px 0; }
+            .map-heading { display:flex; justify-content:space-between; gap:16px; margin-bottom:8px; align-items:baseline; }
+            .map-heading h3 { margin:0; }
+            .map-heading a { white-space:nowrap; }
+            .published-map { display:block; width:100%; height:360px; border:1px solid var(--line); border-radius:12px; background:#171b21; }
             img,video { display:block; width:100%; max-width:100%; height:auto; max-height:70vh; object-fit:contain; border-radius:12px; background:#101722; }
             .gallery-slider { position:relative; width:100%; max-width:100%; border-radius:12px; overflow:hidden; background:#05070a; }
             .gallery-track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; overscroll-behavior-x:contain; }
@@ -554,18 +558,32 @@ struct HtmlExporter {
         case .map:
             guard let section = block.section,
                   let latitude = section.latitude,
-                  let longitude = section.longitude else {
+                  let longitude = section.longitude,
+                  (-90 ... 90).contains(latitude),
+                  (-180 ... 180).contains(longitude) else {
                 return "<p class=\"block meta\">Map unavailable</p>"
             }
-            let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-            var imageHTML = ""
-            if let snapshot = await mapSnapshot(coordinate: coordinate, name: section.placeName),
-               let data = snapshot.jpegData(compressionQuality: 0.86) {
-                let path = context.addAsset(data: data, extension: "jpg")
-                imageHTML = "<img src=\"\(path)\" alt=\"Map of \(attributeEscape(section.placeName))\">"
-            }
+            let locationName = section.placeName.isEmpty
+                ? (section.title.isEmpty ? "Location" : section.title)
+                : section.placeName
+            let latitudeText = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), latitude)
+            let longitudeText = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), longitude)
+            let west = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), longitude - 0.018)
+            let south = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), latitude - 0.0125)
+            let east = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), longitude + 0.018)
+            let north = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), latitude + 0.0125)
+            let embedURL = "https://www.openstreetmap.org/export/embed.html?bbox=\(west)%2C\(south)%2C\(east)%2C\(north)&amp;layer=mapnik&amp;marker=\(latitudeText)%2C\(longitudeText)"
+            let mapURL = "https://www.openstreetmap.org/?mlat=\(latitudeText)&amp;mlon=\(longitudeText)#map=15/\(latitudeText)/\(longitudeText)"
             return """
-            <div class="block"><h3>\(htmlEscape(section.placeName.isEmpty ? "Location" : section.placeName))</h3>\(imageHTML)<p class="coordinates">\(latitude.formatted()), \(longitude.formatted())</p><p>\(htmlEscape(block.mapDescription).replacingOccurrences(of: "\n", with: "<br>"))</p></div>
+            <div class="block map-card">
+              <div class="map-heading">
+                <h3>\(htmlEscape(locationName))</h3>
+                <a href="\(mapURL)" target="_blank" rel="noopener noreferrer">Open map</a>
+              </div>
+              <iframe class="published-map" title="Map of \(attributeEscape(locationName))" loading="lazy" referrerpolicy="no-referrer" src="\(embedURL)"></iframe>
+              <p class="coordinates">\(String(format: "%.5f", locale: Locale(identifier: "en_US_POSIX"), latitude)), \(String(format: "%.5f", locale: Locale(identifier: "en_US_POSIX"), longitude))</p>
+              <p>\(htmlEscape(block.mapDescription).replacingOccurrences(of: "\n", with: "<br>"))</p>
+            </div>
             """
         }
     }
@@ -662,37 +680,6 @@ struct HtmlExporter {
         }
         try? FileManager.default.removeItem(at: temporaryURL)
         return (data, safeExtension)
-    }
-
-    private static func mapSnapshot(
-        coordinate: CLLocationCoordinate2D,
-        name: String
-    ) async -> UIImage? {
-        let options = MKMapSnapshotter.Options()
-        options.region = MKCoordinateRegion(
-            center: coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.025, longitudeDelta: 0.025)
-        )
-        options.size = CGSize(width: 1200, height: 700)
-        options.scale = 1
-        guard let snapshot = try? await MKMapSnapshotter(options: options).start() else { return nil }
-
-        let renderer = UIGraphicsImageRenderer(size: options.size)
-        return renderer.image { _ in
-            snapshot.image.draw(at: .zero)
-            let point = snapshot.point(for: coordinate)
-            let marker = UIImage(systemName: "mappin.circle.fill")?
-                .withTintColor(.systemRed, renderingMode: .alwaysOriginal)
-            marker?.draw(in: CGRect(x: point.x - 18, y: point.y - 36, width: 36, height: 36))
-            if !name.isEmpty {
-                let attributes: [NSAttributedString.Key: Any] = [
-                    .font: UIFont.boldSystemFont(ofSize: 22),
-                    .foregroundColor: UIColor.label,
-                    .backgroundColor: UIColor.systemBackground.withAlphaComponent(0.85),
-                ]
-                NSString(string: name).draw(at: CGPoint(x: 18, y: 18), withAttributes: attributes)
-            }
-        }
     }
 
     private static func caption(_ text: String) -> String {
@@ -812,8 +799,12 @@ struct HtmlExportView: View {
 
                     if let exportedURL {
                         ShareLink(item: exportedURL) {
-                            Label("Share HTML ZIP", systemImage: "square.and.arrow.up")
-                                .frame(maxWidth: .infinity)
+                            HStack {
+                                Spacer(minLength: 0)
+                                Label("Share HTML ZIP", systemImage: "square.and.arrow.up")
+                                Spacer(minLength: 0)
+                            }
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderedProminent)
                     } else {
@@ -832,7 +823,7 @@ struct HtmlExportView: View {
                         .disabled(isGenerating || selectedSections.isEmpty)
                     }
                 } footer: {
-                    Text("Extract the ZIP on a computer and open index.html. Photos, videos, map snapshots, and styling are stored inside the package. Archives containing videos may be large.")
+                    Text("Extract the ZIP on a computer and open index.html. Photos, videos, and styling are stored inside the package. Interactive OpenStreetMap maps require an internet connection. Archives containing videos may be large.")
                 }
             }
             .navigationTitle("Export HTML Package")
