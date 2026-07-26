@@ -55,11 +55,21 @@ struct HtmlExporter {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>\(htmlEscape(title))</title>
+          <script>
+            try {
+              document.documentElement.dataset.theme =
+                localStorage.getItem('roamstory-theme') === 'light' ? 'light' : 'dark';
+            } catch {
+              document.documentElement.dataset.theme = 'dark';
+            }
+          </script>
           <style>
-            :root { color-scheme: light dark; --paper:#f7f5f0; --panel:#fff; --ink:#1d2530; --muted:#68717c; --accent:#e76542; --line:#d9d5cc; }
+            :root { color-scheme:dark; --page:#0d1117; --paper:#12161c; --panel:#1a1f26; --ink:#f0f2f4; --muted:#a9b0b9; --accent:#e76542; --line:#343b44; --link:#72a7ff; --quote:#c1c7ce; --shadow:#0006; }
+            :root[data-theme="light"] { color-scheme:light; --page:#eef1f4; --paper:#f7f5f0; --panel:#fff; --ink:#1d2530; --muted:#68717c; --line:#d9d5cc; --link:#1769aa; --quote:#4f5864; --shadow:#17202c18; }
             * { box-sizing:border-box; }
-            body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:#eef1f4; color:var(--ink); line-height:1.62; }
-            main { width:min(900px,calc(100% - 28px)); margin:28px auto; background:var(--paper); padding:clamp(18px,4vw,44px); border-radius:18px; box-shadow:0 12px 40px #17202c18; }
+            body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--page); color:var(--ink); line-height:1.62; }
+            main { width:min(900px,calc(100% - 28px)); margin:68px auto 28px; background:var(--paper); padding:clamp(18px,4vw,44px); border-radius:18px; box-shadow:0 12px 40px var(--shadow); }
+            .theme-toggle { position:fixed; z-index:5; top:max(14px,env(safe-area-inset-top)); right:max(14px,env(safe-area-inset-right)); padding:9px 13px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink); box-shadow:0 2px 10px var(--shadow); font:600 .88rem system-ui; cursor:pointer; }
             h1 { font-family:Georgia,serif; font-size:clamp(2rem,6vw,3.8rem); line-height:1.08; margin:0 0 2rem; }
             h2 { font-family:Georgia,serif; font-size:2rem; margin:2.6rem 0 .25rem; padding-top:1.5rem; border-top:1px solid var(--line); }
             h3 { font-size:1.25rem; margin:1.7rem 0 .45rem; }
@@ -109,18 +119,18 @@ struct HtmlExporter {
             .lightbox-metadata div { display:flex; gap:9px; align-items:center; font-variant-numeric:tabular-nums; }
             .lightbox-metadata span { width:1.4rem; text-align:center; }
             .lightbox-metadata[hidden] { display:none; }
-            blockquote { margin:.25rem 0; padding:.5rem 1.2rem; border-left:4px solid var(--accent); color:#4f5864; }
+            blockquote { margin:.25rem 0; padding:.5rem 1.2rem; border-left:4px solid var(--accent); color:var(--quote); }
             pre { width:100%; margin:0; overflow:auto; padding:1rem; border-radius:10px; background:#18202b; color:#f4f6f8; font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
             hr { width:100%; border:0; border-top:1px solid var(--line); margin:0; }
-            a { color:#1769aa; text-decoration-thickness:.08em; }
+            a { color:var(--link); text-decoration-thickness:.08em; }
             .linked-media { position:relative; display:block; }
             .photo-viewer-image { cursor:zoom-in; }
             .media-link-badge { position:absolute; z-index:2; top:10px; right:10px; width:38px; height:38px; display:grid; place-items:center; border-radius:50%; background:#1769aae8; color:white; font-size:1.15rem; font-weight:700; text-decoration:none; box-shadow:0 2px 8px #0005; }
-            @media (prefers-color-scheme:dark) { :root { --paper:#12161c; --panel:#1a1f26; --ink:#f0f2f4; --muted:#a9b0b9; --line:#343b44; } body { background:#0d1117; } blockquote { color:#c1c7ce; } }
-            @media print { body { background:white; } main { width:100%; margin:0; padding:0; box-shadow:none; } section { break-inside:avoid-page; } }
+            @media print { body { background:white; } main { width:100%; margin:0; padding:0; box-shadow:none; } .theme-toggle { display:none; } section { break-inside:avoid-page; } }
           </style>
         </head>
         <body>
+          <button class="theme-toggle" type="button" aria-label="Switch to light theme">☀ Light</button>
           <main>
             <h1>\(htmlEscape(title))</h1>
             \(sectionHTML)
@@ -137,6 +147,19 @@ struct HtmlExporter {
             <div class="lightbox-metadata" hidden></div>
           </dialog>
           <script>
+            const themeToggle = document.querySelector('.theme-toggle');
+            const updateThemeToggle = () => {
+              const isLight = document.documentElement.dataset.theme === 'light';
+              themeToggle.textContent = isLight ? '☾ Dark' : '☀ Light';
+              themeToggle.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+            };
+            themeToggle.addEventListener('click', () => {
+              const nextTheme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+              document.documentElement.dataset.theme = nextTheme;
+              try { localStorage.setItem('roamstory-theme', nextTheme); } catch {}
+              updateThemeToggle();
+            });
+            updateThemeToggle();
             const lightbox = document.querySelector('.photo-lightbox');
             const lightboxImage = lightbox.querySelector('img');
             const lightboxPrevious = lightbox.querySelector('.lightbox-previous');
@@ -799,13 +822,14 @@ struct HtmlExportView: View {
 
                     if let exportedURL {
                         ShareLink(item: exportedURL) {
-                            HStack {
-                                Spacer(minLength: 0)
-                                Label("Share HTML ZIP", systemImage: "square.and.arrow.up")
-                                Spacer(minLength: 0)
+                            HStack(spacing: 8) {
+                                Image(systemName: "square.and.arrow.up")
+                                Text("Share HTML ZIP")
                             }
-                            .contentShape(Rectangle())
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .contentShape(Rectangle())
                         }
+                        .frame(maxWidth: .infinity, alignment: .center)
                         .buttonStyle(.borderedProminent)
                     } else {
                         Button {
@@ -815,10 +839,15 @@ struct HtmlExportView: View {
                                 Text("Generating HTML ZIP…")
                                     .frame(maxWidth: .infinity)
                             } else {
-                                Label("Generate HTML ZIP", systemImage: "archivebox")
-                                    .frame(maxWidth: .infinity)
+                                HStack(spacing: 8) {
+                                    Image(systemName: "archivebox")
+                                    Text("Generate HTML ZIP")
+                                }
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .contentShape(Rectangle())
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .center)
                         .buttonStyle(.borderedProminent)
                         .disabled(isGenerating || selectedSections.isEmpty)
                     }

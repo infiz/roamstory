@@ -460,9 +460,14 @@ struct DocxExportView: View {
 
                     if let exportedURL {
                         ShareLink(item: exportedURL) {
-                            Label("Share DOCX", systemImage: "square.and.arrow.up")
-                                .frame(maxWidth: .infinity)
+                            HStack(spacing: 8) {
+                                Image(systemName: "square.and.arrow.up")
+                                Text("Share DOCX")
+                            }
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .contentShape(Rectangle())
                         }
+                        .frame(maxWidth: .infinity, alignment: .center)
                         .buttonStyle(.borderedProminent)
                     } else {
                         Button {
@@ -472,10 +477,15 @@ struct DocxExportView: View {
                                 Text("Generating DOCX…")
                                     .frame(maxWidth: .infinity)
                             } else {
-                                Label("Generate DOCX", systemImage: "doc.badge.arrow.up")
-                                    .frame(maxWidth: .infinity)
+                                HStack(spacing: 8) {
+                                    Image(systemName: "doc.badge.arrow.up")
+                                    Text("Generate DOCX")
+                                }
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .contentShape(Rectangle())
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .center)
                         .buttonStyle(.borderedProminent)
                         .disabled(isGenerating || selectedSections.isEmpty)
                     }
