@@ -243,6 +243,16 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | FR-077 | P1 | Republishing creates a new immutable revision and does not modify the local canonical trip. |
 | FR-078 | P1 | The user can unpublish a revision and see its sharing status in the app. |
 
+### 6.9 Account setup
+
+| ID | Priority | Requirement |
+|---|---:|---|
+| FR-080 | P0 | The Setup screen allows registration or login with Google, Sign in with Apple, or Facebook against `https://roamstory.infiz.com`. |
+| FR-081 | P0 | A successful first provider login automatically registers a RoamStory server account using the provider-verified email. Later verified identities with the same email may link to that account. |
+| FR-082 | P0 | RoamStory access and refresh credentials are stored in the iOS Keychain and never in SwiftData trip records or user defaults. |
+| FR-083 | P0 | Logging out revokes the current server session and removes provider/session credentials from the device without deleting or modifying any local trip, section, block, or media reference. |
+| FR-084 | P0 | The Setup screen clearly shows whether the user is signed in, the account email, the target server, progress, and actionable authentication errors. |
+
 ## 7. UX requirements
 
 ### 7.1 Trips list

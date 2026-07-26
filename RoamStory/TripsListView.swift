@@ -12,6 +12,7 @@ struct TripsListView: View {
     @State private var isCreatingTrip = false
     @State private var tripBeingEdited: Trip?
     @State private var tripPendingDeletion: Trip?
+    @State private var isShowingSetup = false
 
     private var sortField: TripSortField {
         TripSortField(rawValue: sortFieldRawValue) ?? .modified
@@ -134,6 +135,11 @@ struct TripsListView: View {
             }
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        isShowingSetup = true
+                    } label: {
+                        Label("Setup", systemImage: "gearshape")
+                    }
                     sortMenu
                     Button {
                         isCreatingTrip = true
@@ -149,6 +155,9 @@ struct TripsListView: View {
             }
             .sheet(item: $tripBeingEdited) { trip in
                 EditTripView(trip: trip)
+            }
+            .sheet(isPresented: $isShowingSetup) {
+                SetupView()
             }
             .alert(
                 "Delete Trip?",
