@@ -38,19 +38,23 @@ struct HtmlExporter {
         progress?(0.02, "Preparing HTML package…")
 
         var context = BuildContext()
-        var sectionHTML = ""
+        var renderedSections: [(section: TripSection, html: String)] = []
         for (index, section) in sections.enumerated() {
             let sectionProgress = 0.08 + (Double(index) / Double(sections.count)) * 0.78
             progress?(sectionProgress, "Processing \(section.title)…")
             await Task.yield()
-            sectionHTML += await render(section: section, context: &context)
+            renderedSections.append((
+                section,
+                await render(section: section, context: &context)
+            ))
             let completedProgress = 0.08 + (Double(index + 1) / Double(sections.count)) * 0.78
             progress?(completedProgress, "Processed \(section.title)")
         }
 
-        let document = """
+        let pageContentPlaceholder = "<!-- ROAMSTORY_PAGE_CONTENT -->"
+        let documentTemplate = """
         <!doctype html>
-        <html lang="en">
+        <html lang="en" data-theme="dark">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -126,6 +130,15 @@ struct HtmlExporter {
             .linked-media { position:relative; display:block; }
             .photo-viewer-image { cursor:zoom-in; }
             .media-link-badge { position:absolute; z-index:2; top:10px; right:10px; width:38px; height:38px; display:grid; place-items:center; border-radius:50%; background:#1769aae8; color:white; font-size:1.15rem; font-weight:700; text-decoration:none; box-shadow:0 2px 8px #0005; }
+            .section-navigation { display:flex; gap:8px; margin:0 0 26px; padding:4px 0 10px; overflow-x:auto; scrollbar-width:thin; }
+            .section-navigation a { flex:0 0 auto; padding:7px 12px; border:1px solid var(--line); border-radius:999px; background:var(--panel); text-decoration:none; }
+            .section-navigation a[aria-current="page"] { border-color:var(--accent); color:var(--ink); }
+            .section-index { display:grid; gap:12px; }
+            .section-index-entry { display:block; padding:16px; border:1px solid var(--line); border-radius:14px; background:var(--panel); color:var(--ink); }
+            .section-index-title { display:flex; gap:9px; align-items:center; color:var(--ink); font-weight:700; text-decoration:none; }
+            .section-location-link { color:var(--muted); text-decoration:underline; text-underline-offset:2px; }
+            .section-index-meta { display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:5px; color:var(--muted); font-size:.9rem; }
+            .section-detail-meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:0 0 18px; color:var(--muted); font-size:.9rem; }
             @media print { body { background:white; } main { width:100%; margin:0; padding:0; box-shadow:none; } .theme-toggle { display:none; } section { break-inside:avoid-page; } }
           </style>
         </head>
@@ -133,7 +146,7 @@ struct HtmlExporter {
           <button class="theme-toggle" type="button" aria-label="Switch to light theme">☀ Light</button>
           <main>
             <h1>\(htmlEscape(title))</h1>
-            \(sectionHTML)
+            \(pageContentPlaceholder)
           </main>
           <dialog class="photo-lightbox" aria-label="Full-screen photo">
             <button class="lightbox-close" type="button" aria-label="Close full-screen photo">×</button>
@@ -148,6 +161,19 @@ struct HtmlExporter {
           </dialog>
           <script>
             const themeToggle = document.querySelector('.theme-toggle');
+            const localDateTime = new Intl.DateTimeFormat(undefined, {
+              dateStyle: 'medium',
+              timeStyle: 'short'
+            });
+            document.querySelectorAll('.local-time-range').forEach((element) => {
+              const start = element.dataset.start ? new Date(element.dataset.start) : null;
+              const end = element.dataset.end ? new Date(element.dataset.end) : null;
+              if (start && end) {
+                element.textContent = `${localDateTime.format(start)} – ${localDateTime.format(end)}`;
+              } else if (start) {
+                element.textContent = localDateTime.format(start);
+              }
+            });
             const updateThemeToggle = () => {
               const isLight = document.documentElement.dataset.theme === 'light';
               themeToggle.textContent = isLight ? '☾ Dark' : '☀ Light';
@@ -455,7 +481,49 @@ struct HtmlExporter {
         </html>
         """
 
-        var entries: [(String, Data)] = [("index.html", Data(document.utf8))]
+        func pageName(for section: TripSection) -> String {
+            "section-\(section.id.uuidString.lowercased()).html"
+        }
+        func navigation(currentSectionID: UUID?) -> String {
+            var links = "<nav class=\"section-navigation\" aria-label=\"Trip sections\"><a href=\"index.html\"\(currentSectionID == nil ? " aria-current=\"page\"" : "")>Trip</a>"
+            for item in renderedSections {
+                let current = item.section.id == currentSectionID ? " aria-current=\"page\"" : ""
+                links += "<a href=\"\(pageName(for: item.section))\"\(current)>\(htmlEscape(item.section.title))</a>"
+            }
+            return links + "</nav>"
+        }
+
+        let sectionIndex = renderedSections.map { item in
+            let kind = sectionKindPresentation(item.section.kind)
+            let place = item.section.placeName.isEmpty
+                ? ""
+                : "<a class=\"section-location-link\" href=\"\(sectionOpenStreetMapURL(item.section))\" target=\"_blank\" rel=\"noopener noreferrer\">\(htmlEscape(item.section.placeName))</a>"
+            return """
+            <div class="section-index-entry">
+              <a class="section-index-title" href="\(pageName(for: item.section))"><span aria-hidden="true">\(kind.icon)</span><span>\(htmlEscape(item.section.title))</span></a>
+              <span class="section-index-meta"><span>\(htmlEscape(kind.label))</span>\(place)\(sectionTimeRangeHTML(item.section))</span>
+            </div>
+            """
+        }.joined()
+        let indexContent = navigation(currentSectionID: nil)
+            + "<section class=\"section-index\" aria-label=\"Trip sections\">\(sectionIndex)</section>"
+        var entries: [(String, Data)] = [(
+            "index.html",
+            Data(documentTemplate.replacingOccurrences(
+                of: pageContentPlaceholder,
+                with: indexContent
+            ).utf8)
+        )]
+        for item in renderedSections {
+            let content = navigation(currentSectionID: item.section.id) + item.html
+            entries.append((
+                pageName(for: item.section),
+                Data(documentTemplate.replacingOccurrences(
+                    of: pageContentPlaceholder,
+                    with: content
+                ).utf8)
+            ))
+        }
         entries.append(contentsOf: context.entries)
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(sanitizedFilename(title))-HTML-\(UUID().uuidString.prefix(8)).zip")
@@ -472,19 +540,74 @@ struct HtmlExporter {
             blocks += await render(block: block, context: &context)
         }
 
-        var metadata = [section.kind.label]
-        if !section.placeName.isEmpty { metadata.append(section.placeName) }
-        if let start = section.startDate, let end = section.endDate {
-            metadata.append(DateRangeFormatting.summary(start: start, end: end))
-        }
+        let kind = sectionKindPresentation(section.kind)
+        let place = section.placeName.isEmpty
+            ? ""
+            : "<a class=\"section-location-link\" href=\"\(sectionOpenStreetMapURL(section))\" target=\"_blank\" rel=\"noopener noreferrer\">\(htmlEscape(section.placeName))</a>"
 
         return """
         <section>
           <h2>\(htmlEscape(section.title))</h2>
-          <p class="meta">\(htmlEscape(metadata.joined(separator: " • ")))</p>
+          <div class="section-detail-meta">
+            <span aria-hidden="true">\(kind.icon)</span><span>\(htmlEscape(kind.label))</span>\(place)\(sectionTimeRangeHTML(section))
+          </div>
           \(blocks)
         </section>
         """
+    }
+
+    private static func sectionKindPresentation(
+        _ kind: SectionKind
+    ) -> (icon: String, label: String) {
+        let icon = switch kind {
+        case .place: "📍"
+        case .activity: "🚶"
+        case .foodAndDrink: "🍽"
+        case .accommodation: "🛏"
+        case .transit: "🚗"
+        case .event: "🎟"
+        case .natureAndWildlife: "🐾"
+        case .reflection: "📖"
+        case .other: "▦"
+        }
+        return (icon, kind.label)
+    }
+
+    private static func sectionTimeRangeHTML(_ section: TripSection) -> String {
+        let start = section.startDate ?? section.occurredAt
+        guard start != nil || section.endDate != nil else { return "" }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let startAttribute = start.map {
+            " data-start=\"\(formatter.string(from: $0))\""
+        } ?? ""
+        let endAttribute = section.endDate.map {
+            " data-end=\"\(formatter.string(from: $0))\""
+        } ?? ""
+        return "<span class=\"local-time-range\"\(startAttribute)\(endAttribute)></span>"
+    }
+
+    private static func sectionOpenStreetMapURL(_ section: TripSection) -> String {
+        if let latitude = section.latitude,
+           let longitude = section.longitude,
+           (-90 ... 90).contains(latitude),
+           (-180 ... 180).contains(longitude) {
+            let latitudeText = String(
+                format: "%.6f",
+                locale: Locale(identifier: "en_US_POSIX"),
+                latitude
+            )
+            let longitudeText = String(
+                format: "%.6f",
+                locale: Locale(identifier: "en_US_POSIX"),
+                longitude
+            )
+            return "https://www.openstreetmap.org/?mlat=\(latitudeText)&amp;mlon=\(longitudeText)#map=15/\(latitudeText)/\(longitudeText)"
+        }
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        let query = section.placeName.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+        return "https://www.openstreetmap.org/search?query=\(query)"
     }
 
     private static func render(block: ContentBlock, context: inout BuildContext) async -> String {

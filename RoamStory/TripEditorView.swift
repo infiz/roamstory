@@ -21,6 +21,7 @@ struct TripEditorView: View {
     @State private var pendingPublishConfirmation: PublishConfirmation?
     @State private var isShowingNoRepublishRequired = false
     @State private var isSelectingPublishSections = false
+    @State private var publishedSectionLink: TripSection?
 
     var body: some View {
         List {
@@ -104,6 +105,16 @@ struct TripEditorView: View {
                                     sectionBeingEdited = section
                                 } label: {
                                     Label("Edit Section", systemImage: "pencil")
+                                }
+                                if trip.publishedSectionURL(for: section.id) != nil {
+                                    Button {
+                                        publishedSectionLink = section
+                                    } label: {
+                                        Label(
+                                            "Published Section Link",
+                                            systemImage: "link"
+                                        )
+                                    }
                                 }
                                 Divider()
                                 Button(role: .destructive) {
@@ -326,6 +337,12 @@ struct TripEditorView: View {
                 "This trip is linked to another RoamStory account. Sign in to that account to republish it. Secure account transfer will be added in the account-transfer phase."
             )
         }
+        .sheet(item: $publishedSectionLink) { section in
+            if let url = trip.publishedSectionURL(for: section.id) {
+                PublishedSectionLinkView(sectionTitle: section.title, url: url)
+                    .presentationDetents([.medium])
+            }
+        }
     }
 
     private func moveSections(from source: IndexSet, to destination: Int) {
@@ -483,6 +500,50 @@ struct TripEditorView: View {
         }
     }
 
+}
+
+struct PublishedSectionLinkView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+
+    let sectionTitle: String
+    let url: URL
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                Label("Last Published Version", systemImage: "clock.arrow.circlepath")
+                    .font(.headline)
+                Text("This link shows the section from the last published version. Review it before sharing if you have made local changes.")
+                    .foregroundStyle(.secondary)
+                Button {
+                    openURL(url)
+                } label: {
+                    Label("Review Published Section", systemImage: "safari")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                ShareLink(
+                    item: url,
+                    subject: Text(sectionTitle),
+                    message: Text("View this section from my RoamStory trip: \(sectionTitle)")
+                ) {
+                    Label("Share Published Section", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Published Section")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
 }
 
 private struct PublishSectionSelectionView: View {

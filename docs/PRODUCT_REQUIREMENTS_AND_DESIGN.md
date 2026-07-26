@@ -234,6 +234,7 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | FR-070C | P0 | Export generation reports progress, prevents exporting an empty selection, handles unavailable media with a placeholder, and presents the standard iOS share sheet after a valid DOCX is generated. |
 | FR-070D | P0 | Offline HTML export is available for the current section, the whole trip, or selected trip sections. It produces a ZIP whose root contains `index.html` and an `assets/` directory. |
 | FR-070E | P0 | The HTML ZIP includes local CSS, Photos-backed images and galleries, playable video files with poster frames, interactive OpenStreetMap embeds and coordinates, captions, links, and accessible text fallbacks. It does not require RoamStory after extraction; maps and author-added external links require a network connection. |
+| FR-070F | P0 | HTML export creates a trip index and a stable UUID-named page for every selected section. Every page provides a section switcher, and section links remain usable when the package is moved as a unit. Index entries show the section type and icon plus an optional time range stored as absolute instants and rendered in the browser's local time zone. |
 | FR-071 | P0 | Export offers at least theme, page size (where applicable), image-quality preset, and inclusion of location metadata. |
 | FR-072 | P0 | Export runs from an immutable document snapshot so editing can continue safely. |
 | FR-073 | P0 | The app reports progress and supports cancellation without leaving a partial file at the chosen destination. |
@@ -241,6 +242,7 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | FR-075 | P0 | PDF and DOCX define a fallback for every V1 block type. |
 | FR-076 | P1 | The user can publish to a private unlisted link or a public page. |
 | FR-076A | P0 | Before publishing or republishing, the user selects one or more trip sections. Only selected sections and their media are included, selected sections preserve trip order, and the last successful selection becomes the default for the next republish. |
+| FR-076B | P0 | A published trip provides a trip index and a stable public URL for each included section. The app exposes review and share actions from both the trip section list and section editor, while warning that the URL represents the last published state. |
 | FR-077 | P1 | Republishing creates a new immutable revision and does not modify the local canonical trip. |
 | FR-078 | P1 | The user can unpublish a revision and see its sharing status in the app. |
 
