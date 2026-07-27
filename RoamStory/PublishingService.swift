@@ -201,6 +201,39 @@ struct PublishedTrip: Decodable {
     }
 }
 
+struct PublishedTripLikeSummary: Equatable {
+    let count: Int
+    let recentLikers: [PublishedLiker]
+}
+
+struct PublishedLiker: Decodable, Equatable {
+    let displayName: String?
+    let avatarURL: URL?
+
+    enum CodingKeys: String, CodingKey {
+        case displayName = "displayName"
+        case avatarURL = "avatarURL"
+    }
+}
+
+struct PublishedLikesResponse: Decodable {
+    let likes: [PublishedLike]
+}
+
+struct PublishedLike: Decodable {
+    let targetType: String
+    let targetUuid: UUID
+    let count: Int
+    let recentLikers: [PublishedLiker]
+
+    enum CodingKeys: String, CodingKey {
+        case targetType = "targetType"
+        case targetUuid = "targetUuid"
+        case count = "count"
+        case recentLikers = "recentLikers"
+    }
+}
+
 extension PublishTripRequest {
     func encodedByteCount() throws -> Int64 {
         let encoder = JSONEncoder()
