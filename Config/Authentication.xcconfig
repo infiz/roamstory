@@ -1,7 +1,7 @@
 // Safe defaults keep local-only development builds runnable.
 GOOGLE_IOS_CLIENT_ID = replace-with-google-ios-client-id
 GOOGLE_REVERSED_CLIENT_ID = replace-with-google-reversed-client-id
-GOOGLE_SERVER_CLIENT_ID = replace-with-google-server-client-id
+GOOGLE_WEB_CLIENT_ID = replace-with-google-web-client-id
 FACEBOOK_APP_ID = replace-with-facebook-app-id
 FACEBOOK_CLIENT_TOKEN = replace-with-facebook-client-token
 

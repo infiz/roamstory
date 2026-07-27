@@ -129,9 +129,13 @@ final class AuthenticationStore: ObservableObject {
 
     func signInWithFacebook() async {
         await performSignIn {
-            let token = try await ProviderLogin.facebookAccessToken()
+            let credential = try await ProviderLogin.facebookCredential()
             self.activityMessage = "Registering or logging in…"
-            return try await self.client.exchange(provider: .facebook, credential: token)
+            return try await self.client.exchange(
+                provider: .facebook,
+                credential: credential.token,
+                nonce: credential.nonce
+            )
         }
     }
 
@@ -286,7 +290,7 @@ final class AuthenticationStore: ObservableObject {
         isWorking = false
     }
 
-    private static func randomNonce() -> String? {
+    fileprivate static func randomNonce() -> String? {
         let alphabet = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
         var bytes = [UInt8](repeating: 0, count: 32)
         guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
@@ -455,6 +459,11 @@ private struct RoamStoryAuthClient {
 }
 
 private enum ProviderLogin {
+    struct FacebookCredential {
+        let token: String
+        let nonce: String
+    }
+
     @MainActor
     static func googleIDToken() async throws -> String {
         let clientID = try configuredValue("GIDClientID", provider: "Google")
@@ -473,30 +482,41 @@ private enum ProviderLogin {
     }
 
     @MainActor
-    static func facebookAccessToken() async throws -> String {
+    static func facebookCredential() async throws -> FacebookCredential {
         _ = try configuredValue("FacebookAppID", provider: "Facebook")
         _ = try configuredValue("FacebookClientToken", provider: "Facebook")
         let manager = LoginManager()
         let presenter = try presentingViewController()
-        let result = try await withCheckedThrowingContinuation {
-            (continuation: CheckedContinuation<LoginManagerLoginResult, Error>) in
-            manager.logIn(
-                permissions: ["public_profile", "email"],
-                from: presenter
-            ) { result, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let result {
-                    continuation.resume(returning: result)
-                } else {
+        guard let nonce = AuthenticationStore.randomNonce() else {
+            throw AuthenticationError.invalidCredential
+        }
+        guard let configuration = LoginConfiguration(
+            permissions: ["public_profile", "email"],
+            tracking: .limited,
+            nonce: nonce
+        ) else {
+            throw AuthenticationError.invalidCredential
+        }
+        try await withCheckedThrowingContinuation {
+            (continuation: CheckedContinuation<Void, Error>) in
+            manager.logIn(viewController: presenter, configuration: configuration) { result in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .cancelled:
                     continuation.resume(throwing: AuthenticationError.invalidCredential)
+                case let .failed(error):
+                    continuation.resume(throwing: error)
                 }
             }
         }
-        guard !result.isCancelled, let token = AccessToken.current?.tokenString else {
+        guard
+            let authenticationToken = AuthenticationToken.current,
+            authenticationToken.nonce == nonce
+        else {
             throw AuthenticationError.invalidCredential
         }
-        return token
+        return FacebookCredential(token: authenticationToken.tokenString, nonce: nonce)
     }
 
     @MainActor
