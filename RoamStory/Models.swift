@@ -205,6 +205,21 @@ final class Trip {
             .appending(path: sectionID.uuidString.lowercased())
     }
 
+    func switchPublicationAccount(
+        to accountID: UUID,
+        newPublishedTripID: UUID = UUID()
+    ) {
+        publishedOwnerAccountID = accountID
+        publishedTripID = newPublishedTripID
+        publicationID = nil
+        publishedRevisionID = nil
+        publishedVersion = nil
+        publishedURLString = nil
+        publishedAt = nil
+        publishedContentFingerprint = nil
+        publishedSectionIDs = nil
+    }
+
     var orderedSections: [TripSection] {
         sections.sorted {
             if $0.sortIndex == $1.sortIndex { return $0.createdAt < $1.createdAt }

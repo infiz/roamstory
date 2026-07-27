@@ -234,7 +234,7 @@ extension PublishTripRequest {
     ) {
         let sectionsToPublish = selectedSections ?? trip.orderedSections
         self.init(
-            tripUuid: trip.id,
+            tripUuid: trip.publishedTripID ?? trip.id,
             expectedVersion: trip.publishedVersion,
             title: trip.title,
             subtitle: trip.subtitle,

@@ -601,4 +601,39 @@ final class TripSorterTests: XCTestCase {
         )
         XCTAssertNil(trip.publishedSectionURL(for: UUID()))
     }
+
+    func testSwitchingPublicationAccountPreservesLocalTripAndUsesNewCloudTripUuid() {
+        let section = TripSection(title: "Kyoto")
+        let trip = Trip(title: "Japan", sections: [section])
+        let previousAccountID = UUID()
+        let currentAccountID = UUID()
+        let newPublishedTripID = UUID()
+        trip.publishedOwnerAccountID = previousAccountID
+        trip.publishedTripID = UUID()
+        trip.publicationID = UUID()
+        trip.publishedRevisionID = UUID()
+        trip.publishedVersion = 4
+        trip.publishedURLString = "https://roamstory.example/shares/old"
+        trip.publishedContentFingerprint = "old-fingerprint"
+        trip.publishedSectionIDs = [section.id]
+
+        trip.switchPublicationAccount(
+            to: currentAccountID,
+            newPublishedTripID: newPublishedTripID
+        )
+
+        XCTAssertEqual(trip.publishedOwnerAccountID, currentAccountID)
+        XCTAssertEqual(trip.publishedTripID, newPublishedTripID)
+        XCTAssertNil(trip.publicationID)
+        XCTAssertNil(trip.publishedRevisionID)
+        XCTAssertNil(trip.publishedVersion)
+        XCTAssertNil(trip.publishedURL)
+        XCTAssertNil(trip.publishedContentFingerprint)
+        XCTAssertNil(trip.publishedSectionIDs)
+        XCTAssertEqual(trip.sections.map(\.id), [section.id])
+
+        let request = PublishTripRequest(trip: trip, mediaUuids: [:])
+        XCTAssertEqual(request.tripUuid, newPublishedTripID)
+        XCTAssertNil(request.expectedVersion)
+    }
 }

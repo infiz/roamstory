@@ -244,6 +244,7 @@ Priority uses **P0** for V1 launch requirements, **P1** for the next intended in
 | FR-076A | P0 | Before publishing or republishing, the user selects one or more trip sections. Only selected sections and their media are included, selected sections preserve trip order, and the last successful selection becomes the default for the next republish. |
 | FR-076B | P0 | A published trip provides a trip index and a stable public URL for each included section. The app exposes review and share actions from both the trip section list and section editor, while warning that the URL represents the last published state. |
 | FR-077 | P1 | Republishing creates a new immutable revision and does not modify the local canonical trip. |
+| FR-077A | P0 | If a local trip is linked to a different RoamStory account, publishing prompts the user to switch the trip to the current account. Confirmation replaces only the saved cloud publication reference, assigns a new server-facing trip UUID, and continues through normal section selection; local sections, blocks, and media remain unchanged. |
 | FR-078 | P1 | The user can unpublish a revision and see its sharing status in the app. |
 
 ### 6.9 Account setup
