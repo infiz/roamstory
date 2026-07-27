@@ -52,6 +52,7 @@ struct TripEditorView: View {
             if let publishedURL = trip.publishedURL {
                 PublishedTripLinkRow(
                     tripTitle: trip.title,
+                    tripUuid: trip.publishedTripID ?? trip.id,
                     url: publishedURL
                 )
             }
@@ -656,6 +657,7 @@ private struct PublishedTripLinkRow: View {
     @Environment(\.openURL) private var openURL
 
     let tripTitle: String
+    let tripUuid: UUID
     let url: URL
 
     var body: some View {
@@ -670,7 +672,13 @@ private struct PublishedTripLinkRow: View {
             .buttonStyle(.plain)
             .accessibilityHint("Opens the published trip in your browser")
 
-            Spacer()
+            PublishedTripLikeSummaryView(
+                tripUuid: tripUuid,
+                url: url
+            )
+            .layoutPriority(1)
+
+            Spacer(minLength: 4)
 
             ShareLink(
                 item: url,
@@ -686,6 +694,121 @@ private struct PublishedTripLinkRow: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .contain)
+    }
+}
+
+private struct PublishedTripLikeSummaryView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var authentication: AuthenticationStore
+
+    let tripUuid: UUID
+    let url: URL
+    @State private var likeSummary: PublishedTripLikeSummary?
+    @State private var isLoadingLikes = false
+    @State private var likesErrorMessage: String?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if let likeSummary {
+                HStack(spacing: 5) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "heart.fill")
+                        Text(likeSummary.count.formatted())
+                            .monospacedDigit()
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: true, vertical: false)
+
+                    HStack(spacing: -6) {
+                        ForEach(
+                            Array(likeSummary.recentLikers.enumerated()),
+                            id: \.offset
+                        ) { _, liker in
+                            PublishedLikerAvatar(liker: liker, size: 20)
+                        }
+                    }
+                }
+                .fixedSize()
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(likeSummary.count) likes")
+            } else if isLoadingLikes {
+                ProgressView()
+                    .controlSize(.mini)
+                    .accessibilityLabel("Loading published trip likes")
+            } else if likesErrorMessage != nil {
+                Button {
+                    Task { await loadLikes() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Reload published trip likes")
+            }
+        }
+        .frame(minWidth: 16, minHeight: 20)
+        .task(id: "\(url.absoluteString)|\(authentication.account?.id.uuidString ?? "")") {
+            await loadLikes()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task { await loadLikes() }
+        }
+    }
+
+    @MainActor
+    private func loadLikes() async {
+        guard !isLoadingLikes else { return }
+        isLoadingLikes = true
+        likesErrorMessage = nil
+        defer { isLoadingLikes = false }
+        do {
+            likeSummary = try await authentication.publishedTripLikes(
+                publicURL: url,
+                tripUuid: tripUuid
+            )
+        } catch {
+            likesErrorMessage = error.localizedDescription
+            #if DEBUG
+            print("Unable to load published trip likes: \(error)")
+            #endif
+        }
+    }
+}
+
+private struct PublishedLikerAvatar: View {
+    let liker: PublishedLiker
+    var size: CGFloat = 24
+
+    var body: some View {
+        Group {
+            if let avatarURL = liker.avatarURL {
+                AsyncImage(url: avatarURL) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        fallback
+                    }
+                }
+            } else {
+                fallback
+            }
+        }
+        .frame(width: size, height: size)
+        .background(.secondary.opacity(0.16))
+        .clipShape(Circle())
+        .overlay(Circle().stroke(.background, lineWidth: 1.5))
+        .accessibilityHidden(true)
+    }
+
+    private var fallback: some View {
+        Image(systemName: "person.fill")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
     }
 }
 

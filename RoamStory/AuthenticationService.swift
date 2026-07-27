@@ -208,6 +208,37 @@ final class AuthenticationStore: ObservableObject {
         return try await client.publish(request, accessToken: accessToken)
     }
 
+    func publishedTripLikes(
+        publicURL: URL,
+        tripUuid: UUID
+    ) async throws -> PublishedTripLikeSummary {
+        let accessToken: String?
+        if session == nil {
+            accessToken = nil
+        } else {
+            accessToken = try await validAccessToken()
+        }
+        let pathComponents = publicURL.pathComponents.filter { $0 != "/" }
+        guard let sharesIndex = pathComponents.firstIndex(of: "shares"),
+              pathComponents.indices.contains(sharesIndex + 1)
+        else {
+            throw AuthenticationError.invalidResponse
+        }
+        let response = try await client.likes(
+            slug: pathComponents[sharesIndex + 1],
+            accessToken: accessToken
+        )
+        guard let tripLike = response.likes.first(where: {
+            $0.targetType == "trip" && $0.targetUuid == tripUuid
+        }) else {
+            return PublishedTripLikeSummary(count: 0, recentLikers: [])
+        }
+        return PublishedTripLikeSummary(
+            count: tripLike.count,
+            recentLikers: Array(tripLike.recentLikers.prefix(5))
+        )
+    }
+
     func prepareMedia(_ media: LocalPublishMedia) async throws -> PreparedMediaUpload {
         let accessToken = try await validAccessToken()
         return try await client.prepareMedia(media, accessToken: accessToken)
@@ -352,6 +383,35 @@ private struct RoamStoryAuthClient {
             body: request,
             accessToken: accessToken
         )
+    }
+
+    func likes(
+        slug: String,
+        accessToken: String?
+    ) async throws -> PublishedLikesResponse {
+        let encodedSlug = slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)
+            ?? slug
+        let path = "/api/v1/shares/\(encodedSlug)/likes"
+        var request = URLRequest(url: baseURL.appending(path: path))
+        if let accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AuthenticationError.invalidResponse
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let message = (try? decoder.decode(ErrorEnvelope.self, from: data).error.message)
+                ?? Self.fallbackErrorMessage(path: path, statusCode: http.statusCode)
+            throw AuthenticationError.server(message)
+        }
+        do {
+            return try decoder.decode(PublishedLikesResponse.self, from: data)
+        } catch let error as DecodingError {
+            throw AuthenticationError.server(
+                Self.responseDecodingMessage(for: error, path: path)
+            )
+        }
     }
 
     func prepareMedia(
