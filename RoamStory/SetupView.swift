@@ -93,6 +93,7 @@ struct SetupView: View {
                     }
                 }
             }
+            .id(authentication.account?.id)
             .navigationTitle("Setup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

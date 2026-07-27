@@ -26,6 +26,20 @@ read_environment_property() {
     printf '%s' "${property_value}"
 }
 
+read_local_configuration_property() {
+    local property_name="$1"
+    local line
+    local property_value=""
+
+    [[ -f "${local_configuration}" ]] || return
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        if [[ "${line}" == "${property_name} = "* ]]; then
+            property_value="${line#"${property_name} = "}"
+        fi
+    done < "${local_configuration}"
+    printf '%s' "${property_value}"
+}
+
 write_environment_property() {
     local property_name="$1"
     local property_value="$2"
@@ -58,10 +72,18 @@ prompt_for_property() {
     local prompt_label="$2"
     local retrieval_hint="$3"
     local property_value
+    local local_property_value
 
     property_value="$(read_environment_property "${property_name}")"
     if [[ -n "${property_value}" && "${property_value}" != replace-with-* ]]; then
         printf '%s' "${property_value}"
+        return
+    fi
+
+    local_property_value="$(read_local_configuration_property "${property_name}")"
+    if [[ -n "${local_property_value}" && "${local_property_value}" != replace-with-* ]]; then
+        write_environment_property "${property_name}" "${local_property_value}"
+        printf '%s' "${local_property_value}"
         return
     fi
 
@@ -83,10 +105,10 @@ prompt_for_property() {
     printf '%s' "${property_value}"
 }
 
-google_server_client_id="$(prompt_for_property \
-    "GOOGLE_SERVER_CLIENT_ID" \
-    "Google Web/server OAuth client ID" \
-    "Use Google Auth Platform > Clients > RoamStory Server (Web application).")"
+google_web_client_id="$(prompt_for_property \
+    "GOOGLE_WEB_CLIENT_ID" \
+    "Google Web OAuth client ID" \
+    "Use Google Auth Platform > Clients > RoamStory Web (Web application), with https://roamstory.infiz.com registered as an Authorized JavaScript origin.")"
 google_ios_client_id="$(prompt_for_property \
     "GOOGLE_IOS_CLIENT_ID" \
     "Google iOS OAuth client ID" \
@@ -116,7 +138,7 @@ temporary_configuration="$(mktemp "${local_configuration}.tmp.XXXXXX")"
     printf '// Generated from %s by scripts/configure_stage_auth.sh.\n' "${environment_file}"
     printf 'GOOGLE_IOS_CLIENT_ID = %s\n' "${google_ios_client_id}"
     printf 'GOOGLE_REVERSED_CLIENT_ID = %s\n' "${google_reversed_client_id}"
-    printf 'GOOGLE_SERVER_CLIENT_ID = %s\n' "${google_server_client_id}"
+    printf 'GOOGLE_WEB_CLIENT_ID = %s\n' "${google_web_client_id}"
     printf 'FACEBOOK_APP_ID = %s\n' "${facebook_app_id}"
     printf 'FACEBOOK_CLIENT_TOKEN = %s\n' "${facebook_client_token}"
 } > "${temporary_configuration}"
