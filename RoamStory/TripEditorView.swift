@@ -331,10 +331,13 @@ struct TripEditorView: View {
             Text("The latest version is available through its web link.")
         }
         .alert("Trip Linked to Another Account", isPresented: $isShowingAccountMismatch) {
+            Button("Switch Trip to This Account", role: .destructive) {
+                switchTripToCurrentAccount()
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(
-                "This trip is linked to another RoamStory account. Sign in to that account to republish it. Secure account transfer will be added in the account-transfer phase."
+                "This trip was published with another RoamStory account. Switch its saved cloud link to the currently signed-in account and publish it there? Local trip data will not be changed."
             )
         }
         .sheet(item: $publishedSectionLink) { section in
@@ -368,6 +371,20 @@ struct TripEditorView: View {
             return
         }
         isSelectingPublishSections = true
+    }
+
+    private func switchTripToCurrentAccount() {
+        guard let account = authentication.account else {
+            publishErrorMessage = "Sign in from Setup before switching this trip."
+            return
+        }
+        trip.switchPublicationAccount(to: account.id)
+        do {
+            try modelContext.save()
+            isSelectingPublishSections = true
+        } catch {
+            publishErrorMessage = "The trip’s publishing account could not be changed."
+        }
     }
 
     private var initialPublishSectionIDs: Set<UUID> {
