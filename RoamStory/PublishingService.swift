@@ -80,7 +80,6 @@ struct PublishMediaSnapshot: Encodable {
     let originalFilename: String
     let caption: String
     let takenAt: Date?
-    let timeZoneIdentifier: String?
     let byteSize: Int64?
     let pixelWidth: Int?
     let pixelHeight: Int?
@@ -94,7 +93,6 @@ struct PublishMediaSnapshot: Encodable {
         case originalFilename = "originalFilename"
         case caption = "caption"
         case takenAt = "takenAt"
-        case timeZoneIdentifier = "timeZoneIdentifier"
         case byteSize = "byteSize"
         case pixelWidth = "pixelWidth"
         case pixelHeight = "pixelHeight"
@@ -315,7 +313,6 @@ extension PublishTripRequest {
                                     originalFilename: reference.originalFilename,
                                     caption: reference.caption,
                                     takenAt: metadata?.takenAt,
-                                    timeZoneIdentifier: metadata?.timeZone.identifier,
                                     byteSize: metadata?.byteCount,
                                     pixelWidth: metadata?.pixelWidth,
                                     pixelHeight: metadata?.pixelHeight
