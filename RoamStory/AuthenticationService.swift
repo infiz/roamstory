@@ -197,8 +197,11 @@ final class AuthenticationStore: ObservableObject {
         errorMessage = nil
         activityMessage = nil
 
-        if let accessToken = session?.accessToken {
-            try? await client.logout(accessToken: accessToken)
+        if let currentSession = session {
+            try? await client.logout(
+                accessToken: currentSession.accessToken,
+                refreshToken: currentSession.refreshToken
+            )
         }
 
         GIDSignIn.sharedInstance.signOut()
@@ -408,22 +411,24 @@ private struct RoamStoryAuthClient {
         nonce: String? = nil
     ) async throws -> ServerSession {
         try await send(
-            path: "/api/v1/auth/\(provider.rawValue)/exchange",
+            path: "/api/v1/auth/ios/\(provider.rawValue)/exchange",
             body: ExchangeRequest(credential: credential, displayName: displayName, nonce: nonce)
         )
     }
 
     func refresh(refreshToken: String) async throws -> ServerSession {
         try await send(
-            path: "/api/v1/auth/refresh",
+            path: "/api/v1/auth/ios/refresh",
             body: RefreshRequest(refreshToken: refreshToken)
         )
     }
 
-    func logout(accessToken: String) async throws {
-        var request = URLRequest(url: baseURL.appending(path: "/api/v1/auth/logout"))
+    func logout(accessToken: String, refreshToken: String) async throws {
+        var request = URLRequest(url: baseURL.appending(path: "/api/v1/auth/ios/logout"))
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(RefreshRequest(refreshToken: refreshToken))
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             throw AuthenticationError.invalidResponse
