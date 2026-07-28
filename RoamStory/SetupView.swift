@@ -5,6 +5,8 @@ struct SetupView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var authentication: AuthenticationStore
     @State private var isShowingAccountID = false
+    @State private var isEditingNickname = false
+    @State private var nickname = ""
 
     var body: some View {
         NavigationStack {
@@ -25,7 +27,7 @@ struct SetupView: View {
                             }
                         }
                         if let displayName = account.displayName, !displayName.isEmpty {
-                            LabeledContent("Name", value: displayName)
+                            LabeledContent("Public Name", value: displayName)
                         }
                     }
                 } header: {
@@ -38,50 +40,7 @@ struct SetupView: View {
                     }
                 }
 
-                if authentication.account == nil {
-                    Section("Sign In or Register") {
-                        SignInWithAppleButton(.continue) { request in
-                            authentication.prepareAppleRequest(request)
-                        } onCompletion: { result in
-                            switch result {
-                            case let .success(authorization):
-                                Task { await authentication.signInWithApple(authorization: authorization) }
-                            case let .failure(error):
-                                authentication.handleAppleFailure(error)
-                            }
-                        }
-                        .signInWithAppleButtonStyle(.black)
-                        .frame(height: 50)
-                        .disabled(authentication.isWorking)
-
-                        Button {
-                            Task { await authentication.signInWithGoogle() }
-                        } label: {
-                            Label("Continue with Google", systemImage: "globe")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
-                        .disabled(authentication.isWorking)
-
-                        Button {
-                            Task { await authentication.signInWithFacebook() }
-                        } label: {
-                            Label("Continue with Facebook", systemImage: "person.2.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
-                        .disabled(authentication.isWorking)
-                    }
-                } else {
-                    Section {
-                        Button("Log Out", role: .destructive) {
-                            Task { await authentication.logout() }
-                        }
-                        .disabled(authentication.isWorking)
-                    }
-                }
+                authenticationSections
 
                 if authentication.isWorking {
                     Section {
@@ -113,20 +72,103 @@ struct SetupView: View {
                 Text(authentication.errorMessage ?? "")
             }
             .alert(
-                "Account Created",
+                "Choose a Nickname?",
                 isPresented: Binding(
-                    get: { authentication.accountStatusMessage != nil },
-                    set: { if !$0 { authentication.accountStatusMessage = nil } }
+                    get: { authentication.shouldPromptForNickname },
+                    set: { if !$0 { authentication.dismissNicknamePrompt() } }
                 )
             ) {
-                Button("OK") { authentication.accountStatusMessage = nil }
+                TextField("Nickname", text: $nickname)
+                Button("Use My Name") {
+                    authentication.dismissNicknamePrompt()
+                }
+                Button("Save Nickname") {
+                    Task { await authentication.updateNickname(nickname) }
+                }
+                .disabled(nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } message: {
-                Text(authentication.accountStatusMessage ?? "")
+                Text("Other users can see your public name with your likes. Enter a nickname if you prefer not to show the name from your sign-in provider.")
+            }
+            .alert("Update Nickname", isPresented: $isEditingNickname) {
+                TextField("Nickname", text: $nickname)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") {
+                    Task { await authentication.updateNickname(nickname) }
+                }
+                .disabled(nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } message: {
+                Text("This name will be shown to other users with your likes.")
             }
             .alert("Account ID", isPresented: $isShowingAccountID) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(authentication.account?.id.uuidString.lowercased() ?? "")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var authenticationSections: some View {
+        if authentication.account == nil {
+            Section("Sign In or Register") {
+                SignInWithAppleButton(.continue) { request in
+                    authentication.prepareAppleRequest(request)
+                } onCompletion: { result in
+                    switch result {
+                    case let .success(authorization):
+                        Task { await authentication.signInWithApple(authorization: authorization) }
+                    case let .failure(error):
+                        authentication.handleAppleFailure(error)
+                    }
+                }
+                .signInWithAppleButtonStyle(.black)
+                .frame(height: 50)
+                .disabled(authentication.isWorking)
+
+                Button {
+                    Task { await authentication.signInWithGoogle() }
+                } label: {
+                    Label("Continue with Google", systemImage: "globe")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(authentication.isWorking)
+
+                Button {
+                    Task { await authentication.signInWithFacebook() }
+                } label: {
+                    Label("Continue with Facebook", systemImage: "person.2.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(authentication.isWorking)
+            }
+        } else {
+            Section {
+                Button {
+                    nickname = authentication.account?.displayName ?? ""
+                    isEditingNickname = true
+                } label: {
+                    LabeledContent(
+                        "Nickname",
+                        value: authentication.account?.displayName ?? "Set"
+                    )
+                }
+                .foregroundStyle(.primary)
+                .disabled(authentication.isWorking)
+            } header: {
+                Text("Privacy")
+            } footer: {
+                Text("Your nickname is shown to other users with your likes. Set one if you prefer not to show the name from your sign-in provider.")
+            }
+
+            Section {
+                Button("Log Out", role: .destructive) {
+                    Task { await authentication.logout() }
+                }
+                .disabled(authentication.isWorking)
             }
         }
     }
