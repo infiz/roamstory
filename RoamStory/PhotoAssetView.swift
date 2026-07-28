@@ -18,7 +18,6 @@ enum PhotoLibraryAccess {
 
 struct PhotoAssetMetadata: Equatable {
     let takenAt: Date?
-    let timeZone: TimeZone
     let byteCount: Int64?
     let pixelWidth: Int
     let pixelHeight: Int
@@ -28,7 +27,6 @@ struct PhotoAssetMetadata: Equatable {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .medium
-        formatter.timeZone = timeZone
         return formatter.string(from: takenAt)
     }
 
@@ -59,11 +57,10 @@ enum PhotoAssetMetadataLoader {
         } else {
             byteCount = await resourceSize(for: asset)
         }
-        let takenAt = originalMetadata?.date ?? asset.creationDate
+        let takenAt = originalMetadata ?? asset.creationDate
 
         return PhotoAssetMetadata(
             takenAt: takenAt,
-            timeZone: .autoupdatingCurrent,
             byteCount: byteCount,
             pixelWidth: asset.pixelWidth,
             pixelHeight: asset.pixelHeight
@@ -82,7 +79,7 @@ enum PhotoAssetMetadataLoader {
 
     private static func readOriginalMetadata(
         from url: URL
-    ) -> (date: Date, timeZone: TimeZone)? {
+    ) -> Date? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
                 as? [CFString: Any],
@@ -99,8 +96,7 @@ enum PhotoAssetMetadataLoader {
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
         formatter.timeZone = timeZone
-        guard let date = formatter.date(from: dateText) else { return nil }
-        return (date, timeZone)
+        return formatter.date(from: dateText)
     }
 
     private static func timeZone(from offset: String) -> TimeZone? {

@@ -240,8 +240,7 @@ struct HtmlExporter {
                 try {
                   details.push(['🗓', new Intl.DateTimeFormat(undefined, {
                     dateStyle:'medium',
-                    timeStyle:'medium',
-                    timeZone:image.dataset.timeZone || undefined
+                    timeStyle:'medium'
                   }).format(new Date(image.dataset.takenAt))]);
                 } catch {
                   details.push(['🗓', image.dataset.takenAt]);
@@ -842,7 +841,6 @@ struct HtmlExporter {
         if let takenAt = metadata.takenAt {
             attributes += " data-taken-at=\"\(formatter.string(from: takenAt))\""
         }
-        attributes += " data-time-zone=\"\(attributeEscape(metadata.timeZone.identifier))\""
         if let byteCount = metadata.byteCount {
             attributes += " data-byte-size=\"\(byteCount)\""
         }
