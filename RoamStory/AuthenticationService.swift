@@ -65,6 +65,14 @@ private struct RefreshRequest: Encodable {
     }
 }
 
+private struct UpdateProfileRequest: Encodable {
+    let displayName: String
+
+    enum CodingKeys: String, CodingKey {
+        case displayName = "displayName"
+    }
+}
+
 private struct ErrorEnvelope: Decodable {
     struct Detail: Decodable {
         let code: String
@@ -105,7 +113,7 @@ final class AuthenticationStore: ObservableObject {
     @Published private(set) var isWorking = false
     @Published var errorMessage: String?
     @Published private(set) var activityMessage: String?
-    @Published var accountStatusMessage: String?
+    @Published private(set) var shouldPromptForNickname = false
 
     private let client: RoamStoryAuthClient
     private let keychain: SessionKeychain
@@ -197,8 +205,42 @@ final class AuthenticationStore: ObservableObject {
         LoginManager().logOut()
         session = nil
         account = nil
-        accountStatusMessage = nil
+        shouldPromptForNickname = false
         try? keychain.delete()
+        activityMessage = nil
+        isWorking = false
+    }
+
+    func dismissNicknamePrompt() {
+        shouldPromptForNickname = false
+    }
+
+    func updateNickname(_ nickname: String) async {
+        guard !isWorking else { return }
+        let nickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !nickname.isEmpty else {
+            errorMessage = "Enter a nickname before saving."
+            return
+        }
+        guard nickname.count <= 50 else {
+            errorMessage = "Nickname must be 50 characters or fewer."
+            return
+        }
+
+        isWorking = true
+        errorMessage = nil
+        activityMessage = "Saving nickname…"
+        do {
+            let accessToken = try await validAccessToken()
+            let updatedAccount = try await client.updateProfile(
+                displayName: nickname,
+                accessToken: accessToken
+            )
+            try replaceAccount(updatedAccount)
+            shouldPromptForNickname = false
+        } catch {
+            errorMessage = error.localizedDescription
+        }
         activityMessage = nil
         isWorking = false
     }
@@ -294,15 +336,31 @@ final class AuthenticationStore: ObservableObject {
     private func clearExpiredSession() {
         session = nil
         account = nil
-        accountStatusMessage = nil
+        shouldPromptForNickname = false
         try? keychain.delete()
+    }
+
+    private func replaceAccount(_ updatedAccount: AccountProfile) throws {
+        guard let currentSession = session else {
+            throw AuthenticationError.server("Sign in again to update your nickname.")
+        }
+        let updatedSession = ServerSession(
+            user: updatedAccount,
+            accountCreated: currentSession.accountCreated,
+            accessToken: currentSession.accessToken,
+            refreshToken: currentSession.refreshToken,
+            accessExpiresAt: currentSession.accessExpiresAt,
+            refreshExpiresAt: currentSession.refreshExpiresAt
+        )
+        try keychain.save(updatedSession)
+        session = updatedSession
+        account = updatedAccount
     }
 
     private func performSignIn(_ operation: () async throws -> ServerSession) async {
         guard !isWorking else { return }
         isWorking = true
         errorMessage = nil
-        accountStatusMessage = nil
         activityMessage = "Signing in…"
 
         do {
@@ -310,9 +368,7 @@ final class AuthenticationStore: ObservableObject {
             try keychain.save(newSession)
             session = newSession
             account = newSession.user
-            accountStatusMessage = newSession.accountCreated == true
-                ? "Your RoamStory account has been created."
-                : nil
+            shouldPromptForNickname = newSession.accountCreated == true
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -371,6 +427,33 @@ private struct RoamStoryAuthClient {
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             throw AuthenticationError.invalidResponse
+        }
+    }
+
+    func updateProfile(
+        displayName: String,
+        accessToken: String
+    ) async throws -> AccountProfile {
+        var request = URLRequest(url: baseURL.appending(path: "/api/v1/me"))
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try encoder.encode(UpdateProfileRequest(displayName: displayName))
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AuthenticationError.invalidResponse
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let message = (try? decoder.decode(ErrorEnvelope.self, from: data).error.message)
+                ?? Self.fallbackErrorMessage(path: "/api/v1/me", statusCode: http.statusCode)
+            throw AuthenticationError.server(message)
+        }
+        do {
+            return try decoder.decode(AccountProfile.self, from: data)
+        } catch let error as DecodingError {
+            throw AuthenticationError.server(
+                Self.responseDecodingMessage(for: error, path: "/api/v1/me")
+            )
         }
     }
 
