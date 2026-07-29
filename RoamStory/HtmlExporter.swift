@@ -496,7 +496,7 @@ struct HtmlExporter {
             let kind = sectionKindPresentation(item.section.kind)
             let place = item.section.placeName.isEmpty
                 ? ""
-                : "<a class=\"section-location-link\" href=\"\(sectionOpenStreetMapURL(item.section))\" target=\"_blank\" rel=\"noopener noreferrer\">\(htmlEscape(item.section.placeName))</a>"
+                : "<a class=\"section-location-link\" href=\"\(sectionGoogleMapsURL(item.section))\" target=\"_blank\" rel=\"noopener noreferrer\">\(htmlEscape(item.section.placeName))</a>"
             return """
             <div class="section-index-entry">
               <a class="section-index-title" href="\(pageName(for: item.section))"><span aria-hidden="true">\(kind.icon)</span><span>\(htmlEscape(item.section.title))</span></a>
@@ -542,7 +542,7 @@ struct HtmlExporter {
         let kind = sectionKindPresentation(section.kind)
         let place = section.placeName.isEmpty
             ? ""
-            : "<a class=\"section-location-link\" href=\"\(sectionOpenStreetMapURL(section))\" target=\"_blank\" rel=\"noopener noreferrer\">\(htmlEscape(section.placeName))</a>"
+            : "<a class=\"section-location-link\" href=\"\(sectionGoogleMapsURL(section))\" target=\"_blank\" rel=\"noopener noreferrer\">\(htmlEscape(section.placeName))</a>"
 
         return """
         <section>
@@ -586,7 +586,7 @@ struct HtmlExporter {
         return "<span class=\"local-time-range\"\(startAttribute)\(endAttribute)></span>"
     }
 
-    private static func sectionOpenStreetMapURL(_ section: TripSection) -> String {
+    private static func sectionGoogleMapsURL(_ section: TripSection) -> String {
         if let latitude = section.latitude,
            let longitude = section.longitude,
            (-90 ... 90).contains(latitude),
@@ -601,12 +601,12 @@ struct HtmlExporter {
                 locale: Locale(identifier: "en_US_POSIX"),
                 longitude
             )
-            return "https://www.openstreetmap.org/?mlat=\(latitudeText)&amp;mlon=\(longitudeText)#map=15/\(latitudeText)/\(longitudeText)"
+            return "https://www.google.com/maps/search/?api=1&amp;query=\(latitudeText)%2C\(longitudeText)"
         }
         var allowed = CharacterSet.alphanumerics
         allowed.insert(charactersIn: "-._~")
         let query = section.placeName.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
-        return "https://www.openstreetmap.org/search?query=\(query)"
+        return "https://www.google.com/maps/search/?api=1&amp;query=\(query)"
     }
 
     private static func render(block: ContentBlock, context: inout BuildContext) async -> String {
@@ -713,12 +713,8 @@ struct HtmlExporter {
                 : section.placeName
             let latitudeText = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), latitude)
             let longitudeText = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), longitude)
-            let west = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), longitude - 0.018)
-            let south = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), latitude - 0.0125)
-            let east = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), longitude + 0.018)
-            let north = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), latitude + 0.0125)
-            let embedURL = "https://www.openstreetmap.org/export/embed.html?bbox=\(west)%2C\(south)%2C\(east)%2C\(north)&amp;layer=mapnik&amp;marker=\(latitudeText)%2C\(longitudeText)"
-            let mapURL = "https://www.openstreetmap.org/?mlat=\(latitudeText)&amp;mlon=\(longitudeText)#map=15/\(latitudeText)/\(longitudeText)"
+            let embedURL = "https://www.google.com/maps?q=\(latitudeText)%2C\(longitudeText)&amp;z=15&amp;output=embed"
+            let mapURL = "https://www.google.com/maps/search/?api=1&amp;query=\(latitudeText)%2C\(longitudeText)"
             return """
             <div class="block map-card">
               <div class="map-heading">
@@ -973,7 +969,7 @@ struct HtmlExportView: View {
                         .disabled(isGenerating || selectedSections.isEmpty)
                     }
                 } footer: {
-                    Text("Extract the ZIP on a computer and open index.html. Photos, videos, and styling are stored inside the package. Interactive OpenStreetMap maps require an internet connection. Archives containing videos may be large.")
+                    Text("Extract the ZIP on a computer and open index.html. Photos, videos, and styling are stored inside the package. Interactive Google Maps require an internet connection. Archives containing videos may be large.")
                 }
             }
             .navigationTitle("Export HTML Package")
