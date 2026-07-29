@@ -467,8 +467,10 @@ final class TripSorterTests: XCTestCase {
         XCTAssertNotNil(data.range(of: Data("lightbox.showModal()".utf8)))
         XCTAssertNotNil(data.range(of: Data("showNextLightboxPhoto".utf8)))
         XCTAssertNotNil(data.range(of: Data("touchend".utf8)))
-        XCTAssertNotNil(data.range(of: Data("openstreetmap.org/export/embed.html".utf8)))
-        XCTAssertNotNil(data.range(of: Data("marker=34.967100%2C135.772700".utf8)))
+        XCTAssertNotNil(data.range(of: Data(
+            "www.google.com/maps?q=34.967100%2C135.772700".utf8
+        )))
+        XCTAssertNotNil(data.range(of: Data("z=15&amp;output=embed".utf8)))
         XCTAssertNotNil(data.range(of: Data(">Open map</a>".utf8)))
         XCTAssertNotNil(data.range(of: Data("Morning walk".utf8)))
         XCTAssertNotNil(data.range(of: Data("class=\"theme-toggle\"".utf8)))
@@ -483,7 +485,7 @@ final class TripSorterTests: XCTestCase {
         XCTAssertNotNil(data.range(of: Data("class=\"section-index\"".utf8)))
         XCTAssertNotNil(data.range(of: Data("class=\"section-location-link\"".utf8)))
         XCTAssertNotNil(data.range(of: Data(
-            "openstreetmap.org/?mlat=34.967100&amp;mlon=135.772700".utf8
+            "www.google.com/maps/search/?api=1&amp;query=34.967100%2C135.772700".utf8
         )))
         XCTAssertNotNil(data.range(of: Data("Food &amp; Drink".utf8)))
         XCTAssertNotNil(data.range(of: Data("data-start=".utf8)))
