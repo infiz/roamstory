@@ -103,6 +103,7 @@ struct HtmlExporter {
             .gallery-dot { width:8px; height:8px; padding:0; border:0; border-radius:50%; background:#ffffff80; cursor:pointer; }
             .gallery-dot[aria-current="true"] { background:white; transform:scale(1.2); }
             .gallery-play { position:absolute; z-index:3; top:12px; right:12px; width:40px; height:40px; border:0; border-radius:50%; background:#000b; color:white; cursor:pointer; }
+            html.lightbox-open, html.lightbox-open body { overflow:hidden; overscroll-behavior:none; }
             .photo-lightbox { width:100vw; height:100vh; max-width:none; max-height:none; margin:0; padding:0; border:0; background:#05070a; overflow:hidden; }
             .photo-lightbox::backdrop { background:#05070a; }
             .photo-lightbox img { position:fixed; inset:0; width:100%; height:100%; object-fit:contain; border-radius:0; background:#05070a; }
@@ -209,6 +210,10 @@ struct HtmlExporter {
             const closeLightbox = () => {
               stopLightboxSlideshow();
               lightbox.close();
+            };
+            const openLightbox = () => {
+              lightbox.showModal();
+              document.documentElement.classList.add('lightbox-open');
             };
             const formatBytes = (value) => {
               const bytes = Number(value);
@@ -324,7 +329,10 @@ struct HtmlExporter {
             lightbox.addEventListener('click', (event) => {
               if (event.target === lightbox) closeLightbox();
             });
-            lightbox.addEventListener('close', stopLightboxSlideshow);
+            lightbox.addEventListener('close', () => {
+              stopLightboxSlideshow();
+              document.documentElement.classList.remove('lightbox-open');
+            });
             lightbox.addEventListener('keydown', (event) => {
               if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
                 stopLightboxSlideshow();
@@ -461,7 +469,7 @@ struct HtmlExporter {
                   lightboxImages = galleryImages;
                   lightboxIndex = index;
                   updateLightbox();
-                  lightbox.showModal();
+                  openLightbox();
                 });
               });
               update();
@@ -472,7 +480,7 @@ struct HtmlExporter {
                 lightboxImages = [image];
                 lightboxIndex = 0;
                 updateLightbox();
-                lightbox.showModal();
+                openLightbox();
               });
             });
           </script>

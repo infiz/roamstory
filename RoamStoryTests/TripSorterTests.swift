@@ -465,6 +465,15 @@ final class TripSorterTests: XCTestCase {
         XCTAssertNotNil(data.range(of: Data("photo-viewer-image".utf8)))
         XCTAssertNotNil(data.range(of: Data("lightboxImages = [image]".utf8)))
         XCTAssertNotNil(data.range(of: Data("lightbox.showModal()".utf8)))
+        XCTAssertNotNil(data.range(of: Data(
+            "html.lightbox-open, html.lightbox-open body".utf8
+        )))
+        XCTAssertNotNil(data.range(of: Data(
+            "document.documentElement.classList.add('lightbox-open')".utf8
+        )))
+        XCTAssertNotNil(data.range(of: Data(
+            "document.documentElement.classList.remove('lightbox-open')".utf8
+        )))
         XCTAssertNotNil(data.range(of: Data("showNextLightboxPhoto".utf8)))
         XCTAssertNotNil(data.range(of: Data("touchend".utf8)))
         XCTAssertNotNil(data.range(of: Data(
