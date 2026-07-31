@@ -252,27 +252,31 @@ private struct TripRowView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(trip.title)
                     .font(.headline)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !trip.subtitle.isEmpty {
                     Text(trip.subtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                if let sectionCount {
-                    Text("\(sectionCount) \(sectionCount == 1 ? "section" : "sections")")
-                        .font(.caption)
+                HStack(spacing: 6) {
+                    if let sectionCount {
+                        Text("\(sectionCount) \(sectionCount == 1 ? "section" : "sections")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(trip.formattedDataSize)
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.secondary.opacity(0.12), in: Capsule())
+                        .fixedSize()
                 }
             }
             Spacer(minLength: 0)
-
-            Text(trip.formattedDataSize)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(.secondary.opacity(0.12), in: Capsule())
         }
         .task(id: trip.id) {
             await loadSectionCount()

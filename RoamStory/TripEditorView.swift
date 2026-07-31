@@ -25,6 +25,22 @@ struct TripEditorView: View {
 
     var body: some View {
         List {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(trip.title)
+                    .font(.title2.bold())
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(trip.formattedDataSize)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.secondary.opacity(0.12), in: Capsule())
+            }
+            .listRowSeparator(.hidden)
+
             if let startDate = trip.startDate, let endDate = trip.endDate {
                 Label {
                     Text(DateRangeFormatting.summary(start: startDate, end: endDate))
@@ -79,11 +95,12 @@ struct TripEditorView: View {
                                         .frame(width: 32, height: 32)
                                         .background(.blue.opacity(0.12), in: Circle())
                                     VStack(alignment: .leading, spacing: 3) {
+                                        Text(section.title)
+                                            .font(.headline)
+                                            .multilineTextAlignment(.leading)
+                                            .fixedSize(horizontal: false, vertical: true)
                                         HStack(spacing: 6) {
-                                            Text(section.title)
-                                                .font(.headline)
-                                                .lineLimit(1)
-                                                .truncationMode(.tail)
+                                            SectionBlockSummary(section: section)
                                             Text(section.formattedDataSize)
                                                 .font(.caption2.weight(.medium))
                                                 .foregroundStyle(.secondary)
@@ -92,7 +109,6 @@ struct TripEditorView: View {
                                                 .background(.secondary.opacity(0.12), in: Capsule())
                                                 .fixedSize()
                                         }
-                                        SectionBlockSummary(section: section)
                                     }
                                     Spacer(minLength: 0)
                                 }

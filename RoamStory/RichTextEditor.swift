@@ -2,6 +2,12 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+enum RichTextListStyle: String {
+    case none
+    case bulleted
+    case numbered
+}
+
 private final class AutomaticallyFocusingTextView: UITextView {
     var automaticallyFocus = false
     private var hasRequestedFocus = false
@@ -25,6 +31,8 @@ final class RichTextFormattingController: ObservableObject {
     @Published private(set) var isUnderlined = false
     @Published private(set) var isLinked = false
     @Published private(set) var hasTextSelection = false
+    @Published private(set) var textColor = UIColor.label
+    @Published private(set) var listStyle: RichTextListStyle = .none
 
     weak var textView: UITextView?
     private var pendingSelectionRefresh: Task<Void, Never>?
@@ -80,6 +88,66 @@ final class RichTextFormattingController: ObservableObject {
         commitChange()
     }
 
+    func applyTextColor(_ color: UIColor) {
+        guard let textView else { return }
+        if textView.selectedRange.length == 0 {
+            textView.typingAttributes[.foregroundColor] = color
+        } else {
+            applyAttribute(.foregroundColor, value: color)
+        }
+        textColor = color
+        commitChange()
+    }
+
+    func toggleListStyle(_ style: RichTextListStyle) {
+        guard let textView else { return }
+        let desiredStyle: RichTextListStyle = listStyle == style ? .none : style
+        let source = textView.attributedText ?? NSAttributedString()
+        let paragraphRange = (source.string as NSString).paragraphRange(for: textView.selectedRange)
+        guard paragraphRange.length > 0 else { return }
+
+        let selectedParagraphs = source.attributedSubstring(from: paragraphRange)
+        let output = NSMutableAttributedString()
+        let fullString = selectedParagraphs.string as NSString
+        var location = 0
+        var itemNumber = 1
+
+        while location < fullString.length {
+            let lineRange = fullString.lineRange(for: NSRange(location: location, length: 0))
+            let line = selectedParagraphs.attributedSubstring(from: lineRange)
+            let contentLength = line.string.hasSuffix("\n") ? max(0, line.length - 1) : line.length
+            let content = line.attributedSubstring(from: NSRange(location: 0, length: contentLength))
+            let prefixLength = Self.listPrefixLength(in: content.string)
+            let bodyRange = NSRange(location: prefixLength, length: content.length - prefixLength)
+            let attributes = content.length > 0
+                ? content.attributes(at: min(prefixLength, content.length - 1), effectiveRange: nil)
+                : textView.typingAttributes
+
+            let prefix: String
+            switch desiredStyle {
+            case .none: prefix = ""
+            case .bulleted: prefix = "• "
+            case .numbered:
+                prefix = "\(itemNumber). "
+                itemNumber += 1
+            }
+            output.append(NSAttributedString(string: prefix, attributes: attributes))
+            output.append(content.attributedSubstring(from: bodyRange))
+            if line.string.hasSuffix("\n") {
+                output.append(NSAttributedString(string: "\n", attributes: attributes))
+            }
+            location = NSMaxRange(lineRange)
+        }
+
+        let mutable = NSMutableAttributedString(attributedString: source)
+        mutable.replaceCharacters(in: paragraphRange, with: output)
+        textView.attributedText = mutable
+        textView.selectedRange = NSRange(location: paragraphRange.location, length: output.length)
+        listStyle = desiredStyle
+        commitChange()
+        refreshSelectionState()
+    }
+
     var currentLinkURL: URL? {
         guard let textView else { return nil }
         return representativeAttributes(in: textView)[.link] as? URL
@@ -128,6 +196,8 @@ final class RichTextFormattingController: ObservableObject {
         isUnderlined = underline != 0
         isLinked = attributes[.link] != nil
         hasTextSelection = textView.selectedRange.length > 0
+        textColor = (attributes[.foregroundColor] as? UIColor) ?? .label
+        listStyle = Self.detectedListStyle(in: textView)
     }
 
     private func setTrait(_ trait: UIFontDescriptor.SymbolicTraits, enabled: Bool) {
@@ -197,6 +267,32 @@ final class RichTextFormattingController: ObservableObject {
 
     private func normalizedURL(from address: String) -> URL? {
         LinkAddress.normalizedURL(from: address)
+    }
+
+    private static func detectedListStyle(in textView: UITextView) -> RichTextListStyle {
+        let string = textView.text as NSString
+        guard string.length > 0 else { return .none }
+        let location = min(textView.selectedRange.location, string.length - 1)
+        let paragraph = string.substring(with: string.paragraphRange(for: NSRange(location: location, length: 0)))
+        if paragraph.hasPrefix("• ") { return .bulleted }
+        if numberedPrefixLength(in: paragraph) > 0 { return .numbered }
+        return .none
+    }
+
+    private static func listPrefixLength(in string: String) -> Int {
+        if string.hasPrefix("• ") { return 2 }
+        return numberedPrefixLength(in: string)
+    }
+
+    private static func numberedPrefixLength(in string: String) -> Int {
+        let utf16 = Array(string.utf16)
+        var index = 0
+        while index < utf16.count, utf16[index] >= 48, utf16[index] <= 57 {
+            index += 1
+        }
+        guard index > 0, index + 1 < utf16.count,
+              utf16[index] == 46, utf16[index + 1] == 32 else { return 0 }
+        return index + 2
     }
 
     private func commitChange() {

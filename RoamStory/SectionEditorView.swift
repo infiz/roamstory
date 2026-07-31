@@ -37,7 +37,20 @@ struct SectionEditorView: View {
 
     var body: some View {
         List {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(section.title)
+                    .font(.title2.bold())
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(section.formattedDataSize)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.secondary.opacity(0.12), in: Capsule())
+
                 if !section.placeName.isEmpty {
                     Label {
                         Text(section.placeName)
@@ -192,14 +205,9 @@ struct SectionEditorView: View {
                     Text(section.title)
                         .font(.headline)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .allowsTightening(true)
                         .truncationMode(.tail)
-                    Text(section.formattedDataSize)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.secondary.opacity(0.12), in: Capsule())
-                        .fixedSize()
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -1278,7 +1286,8 @@ private struct RichParagraphView: View {
                     .accessibilityLabel("Paragraph title")
             }
 
-            HStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
                 Menu(formattingController.fontFamily) {
                     ForEach(fontChoices, id: \.self) { family in
                         Button(family) {
@@ -1334,6 +1343,40 @@ private struct RichParagraphView: View {
                 .tint(formattingController.isLinked ? .accentColor : .secondary)
                 .disabled(!formattingController.hasTextSelection)
                 .accessibilityLabel("Add or edit link for selected text")
+
+                Menu {
+                    ForEach(textColorChoices, id: \.name) { choice in
+                        Button {
+                            formattingController.applyTextColor(choice.color)
+                        } label: {
+                            Label(choice.name, systemImage: "circle.fill")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "paintpalette")
+                        .foregroundStyle(Color(uiColor: formattingController.textColor))
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Change text color")
+
+                Button {
+                    formattingController.toggleListStyle(.bulleted)
+                } label: {
+                    Image(systemName: "list.bullet")
+                }
+                .buttonStyle(.bordered)
+                .tint(formattingController.listStyle == .bulleted ? .accentColor : .secondary)
+                .accessibilityLabel("Toggle bulleted list")
+
+                Button {
+                    formattingController.toggleListStyle(.numbered)
+                } label: {
+                    Image(systemName: "list.number")
+                }
+                .buttonStyle(.bordered)
+                .tint(formattingController.listStyle == .numbered ? .accentColor : .secondary)
+                .accessibilityLabel("Toggle numbered list")
+                }
             }
             .font(.caption)
 
@@ -1361,6 +1404,19 @@ private struct RichParagraphView: View {
 
     private var editorMinimumHeight: CGFloat {
         minimumEditorHeight ?? (block.type == .heading ? 54 : 100)
+    }
+
+    private var textColorChoices: [(name: String, color: UIColor)] {
+        [
+            ("Default", .label),
+            ("Red", .systemRed),
+            ("Orange", .systemOrange),
+            ("Yellow", .systemYellow),
+            ("Green", .systemGreen),
+            ("Blue", .systemBlue),
+            ("Purple", .systemPurple),
+            ("Gray", .systemGray),
+        ]
     }
 }
 
