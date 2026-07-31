@@ -761,12 +761,35 @@ struct HtmlExporter {
             if let underline = attributes[.underlineStyle] as? Int, underline != 0 {
                 value = "<u>\(value)</u>"
             }
+            if let color = attributes[.foregroundColor] as? UIColor,
+               let cssColor = cssColor(color) {
+                value = "<span style=\"color:\(cssColor)\">\(value)</span>"
+            }
             if let url = attributes[.link] as? URL {
                 value = "<a href=\"\(attributeEscape(url.absoluteString))\">\(value)</a>"
             }
             result += value
         }
         return result
+    }
+
+    private static func cssColor(_ color: UIColor) -> String? {
+        let resolved = color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return nil }
+        if alpha < 0.999 {
+            return String(
+                format: "rgba(%d,%d,%d,%.3f)",
+                Int(red * 255), Int(green * 255), Int(blue * 255), alpha
+            )
+        }
+        return String(
+            format: "#%02X%02X%02X",
+            Int(red * 255), Int(green * 255), Int(blue * 255)
+        )
     }
 
     private static func loadImage(reference: MediaReference) async -> UIImage? {
