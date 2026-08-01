@@ -253,6 +253,11 @@ final class AuthenticationStore: ObservableObject {
         return try await client.publish(request, accessToken: accessToken)
     }
 
+    func preview(_ request: PublishTripRequest) async throws -> DraftSitePreview {
+        let accessToken = try await validAccessToken()
+        return try await client.preview(request, accessToken: accessToken)
+    }
+
     func publishedTripLikes(
         publicURL: URL,
         tripUuid: UUID
@@ -470,6 +475,22 @@ private struct RoamStoryAuthClient {
             path: "/api/v1/trips/publish",
             body: request,
             accessToken: accessToken
+        )
+    }
+
+    func preview(
+        _ request: PublishTripRequest,
+        accessToken: String
+    ) async throws -> DraftSitePreview {
+        let response: DraftSitePreviewResponse = try await send(
+            path: "/api/v1/trips/preview",
+            body: request,
+            accessToken: accessToken
+        )
+        return DraftSitePreview(
+            html: response.html,
+            baseURL: baseURL,
+            pages: response.pages
         )
     }
 
