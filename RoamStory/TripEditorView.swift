@@ -22,6 +22,7 @@ struct TripEditorView: View {
     @State private var isShowingNoRepublishRequired = false
     @State private var isSelectingPublishSections = false
     @State private var publishedSectionLink: TripSection?
+    @State private var sitePreview: PublishedSitePreview?
 
     var body: some View {
         List {
@@ -64,6 +65,18 @@ struct TripEditorView: View {
                     "Trip dates \(DateRangeFormatting.summary(start: startDate, end: endDate))"
                 )
             }
+
+            TripSiteActions(
+                publishedURL: trip.publishedURL,
+                canPreview: !isPublishing && !trip.orderedSections.isEmpty,
+                onPreviewDraft: { Task { await previewDraft() } },
+                onViewPublished: { openURL($0) }
+            )
+            .listRowInsets(
+                EdgeInsets(top: 6, leading: 16, bottom: 2, trailing: 16)
+            )
+            .listRowSeparator(.hidden)
+            .environment(\.defaultMinListRowHeight, 0)
 
             if let publishedURL = trip.publishedURL {
                 PublishedTripLinkRow(
@@ -230,11 +243,17 @@ struct TripEditorView: View {
                         )
                     }
                     .disabled(isPublishing)
+                    Button {
+                        Task { await previewDraft() }
+                    } label: {
+                        Label("Review Draft", systemImage: "eye")
+                    }
+                    .disabled(isPublishing || trip.orderedSections.isEmpty)
                     if let url = trip.publishedURL {
                         Button {
                             openURL(url)
                         } label: {
-                            Label("Open Published Trip", systemImage: "safari")
+                            Label("View Publish Site", systemImage: "safari")
                         }
                         ShareLink(item: url) {
                             Label("Share Published Link", systemImage: "square.and.arrow.up")
@@ -363,6 +382,20 @@ struct TripEditorView: View {
                     .presentationDetents([.medium])
             }
         }
+        .sheet(item: $sitePreview) { preview in
+            NavigationStack {
+                PublishedSitePreviewView(preview: preview)
+                    .ignoresSafeArea(edges: .bottom)
+                    .navigationTitle("Draft Preview")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Close") { sitePreview = nil }
+                        }
+                    }
+            }
+                .interactiveDismissDisabled()
+        }
     }
 
     private func moveSections(from source: IndexSet, to destination: Int) {
@@ -388,6 +421,53 @@ struct TripEditorView: View {
             return
         }
         isSelectingPublishSections = true
+    }
+
+    @MainActor
+    private func previewDraft() async {
+        guard !isPublishing else { return }
+        guard authentication.account != nil else {
+            publishErrorMessage = "Sign in to preview the published-site layout."
+            return
+        }
+        let selectedSections = trip.orderedSections
+        guard !selectedSections.isEmpty else { return }
+        isPublishing = true
+        publishingMessage = "Preparing draft preview…"
+        defer {
+            publishingMessage = nil
+            isPublishing = false
+        }
+        do {
+            let references = selectedSections
+                .flatMap(\.orderedBlocks)
+                .flatMap(\.orderedMediaReferences)
+            let localMedia = try await LocalPublishMedia.load(references)
+            let mediaUuids = Dictionary(
+                uniqueKeysWithValues: localMedia.map { ($0.referenceID, $0.referenceID) }
+            )
+            let mediaMetadata = Dictionary(
+                uniqueKeysWithValues: localMedia.compactMap { item in
+                    item.metadata.map { (item.referenceID, $0) }
+                }
+            )
+            let request = PublishTripRequest(
+                trip: trip,
+                selectedSections: selectedSections,
+                mediaUuids: mediaUuids,
+                mediaMetadata: mediaMetadata
+            )
+            publishingMessage = "Rendering draft preview…"
+            let preview = try await authentication.preview(request)
+            sitePreview = PublishedSitePreview(
+                html: preview.html,
+                baseURL: preview.baseURL,
+                media: Dictionary(uniqueKeysWithValues: localMedia.map { ($0.referenceID, $0) }),
+                pages: preview.pages
+            )
+        } catch {
+            publishErrorMessage = error.localizedDescription
+        }
     }
 
     private func switchTripToCurrentAccount() {
@@ -670,24 +750,12 @@ private struct PublishSectionSelectionView: View {
 }
 
 private struct PublishedTripLinkRow: View {
-    @Environment(\.openURL) private var openURL
-
     let tripTitle: String
     let tripUuid: UUID
     let url: URL
 
     var body: some View {
         HStack(spacing: 12) {
-            Button {
-                openURL(url)
-            } label: {
-                Label("Published Trip", systemImage: "checkmark.icloud")
-                    .font(.headline)
-                    .foregroundStyle(.green)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens the published trip in your browser")
-
             PublishedTripLikeSummaryView(
                 tripUuid: tripUuid,
                 url: url
@@ -709,6 +777,47 @@ private struct PublishedTripLinkRow: View {
             .accessibilityLabel("Share published trip")
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct TripSiteActions: View {
+    let publishedURL: URL?
+    let canPreview: Bool
+    let onPreviewDraft: () -> Void
+    let onViewPublished: (URL) -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: onPreviewDraft) {
+                HStack(spacing: 6) {
+                    Image(systemName: "eye")
+                    Text("Review Draft")
+                        .layoutPriority(1)
+                }
+                    .lineLimit(1)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!canPreview)
+            .layoutPriority(1)
+
+            if let publishedURL {
+                Button {
+                    onViewPublished(publishedURL)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "safari")
+                        Text("View Publish Site")
+                            .layoutPriority(1)
+                    }
+                        .lineLimit(1)
+                }
+                .buttonStyle(.bordered)
+                .tint(.green)
+                .layoutPriority(2)
+            }
+        }
+        .font(.subheadline.weight(.semibold))
         .accessibilityElement(children: .contain)
     }
 }

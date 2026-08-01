@@ -1,7 +1,9 @@
 import CryptoKit
 import Foundation
 import Photos
+import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 struct PublishTripRequest: Encodable {
     let tripUuid: UUID
@@ -21,6 +23,161 @@ struct PublishTripRequest: Encodable {
         case endAt = "endAt"
         case sections = "sections"
     }
+}
+
+struct DraftSitePreview {
+    let html: String
+    let baseURL: URL
+    let pages: [String: String]
+}
+
+struct DraftSitePreviewResponse: Decodable {
+    let html: String
+    let pages: [String: String]
+}
+
+struct PublishedSitePreview: Identifiable {
+    let html: String
+    let baseURL: URL
+    let media: [UUID: LocalPublishMedia]
+    let pages: [String: String]
+    let id = UUID()
+
+    func replacingMediaURLs(in source: String) -> String {
+        media.keys.reduce(source) { result, mediaUuid in
+            result.replacingOccurrences(
+                of: "/media/\(mediaUuid.uuidString.lowercased())",
+                with: "\(PreviewMediaSchemeHandler.scheme)://media/\(mediaUuid.uuidString.lowercased())"
+            )
+        }
+    }
+}
+
+struct PublishedSitePreviewView: UIViewRepresentable {
+    let preview: PublishedSitePreview
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            pages: preview.pages.mapValues { preview.replacingMediaURLs(in: $0) }
+        )
+    }
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        configuration.setURLSchemeHandler(
+            PreviewMediaSchemeHandler(media: preview.media),
+            forURLScheme: PreviewMediaSchemeHandler.scheme
+        )
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.navigationDelegate = context.coordinator
+        let html = preview.replacingMediaURLs(in: preview.html)
+        view.loadHTMLString(html, baseURL: preview.baseURL)
+        return view
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        private let pages: [String: String]
+
+        init(pages: [String: String]) {
+            self.pages = pages
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            guard navigationAction.navigationType == .linkActivated,
+                  let url = navigationAction.request.url,
+                  let page = pages[url.path] else {
+                decisionHandler(.allow)
+                return
+            }
+            decisionHandler(.cancel)
+            let encodedPage = Self.javascriptString(page)
+            let encodedPath = Self.javascriptString(url.path)
+            webView.evaluateJavaScript(
+                """
+                (() => {
+                  const content = document.querySelector('#published-content');
+                  const navigation = document.querySelector('.section-navigation');
+                  if (!content || !navigation) return;
+                  content.innerHTML = \(encodedPage);
+                  navigation.querySelectorAll('a').forEach(link => {
+                    if (new URL(link.href).pathname === \(encodedPath)) {
+                      link.setAttribute('aria-current', 'page');
+                    } else {
+                      link.removeAttribute('aria-current');
+                    }
+                  });
+                  window.roamstoryInitializePublishedContent?.(content);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                })();
+                """
+            )
+        }
+
+        private static func javascriptString(_ value: String) -> String {
+            guard let data = try? JSONEncoder().encode(value),
+                  let string = String(data: data, encoding: .utf8) else {
+                return "\"\""
+            }
+            return string
+                .replacingOccurrences(of: "<", with: "\\u003c")
+                .replacingOccurrences(of: " ", with: "\\u2028")
+                .replacingOccurrences(of: " ", with: "\\u2029")
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
+            webView.evaluateJavaScript("window.roamstoryPreviewReady === true") {
+                result,
+                _ in
+                guard result as? Bool != true else { return }
+                webView.evaluateJavaScript(
+                    """
+                    document.querySelectorAll('script:not([src])').forEach(original => {
+                      const replacement = document.createElement('script');
+                      replacement.textContent = original.textContent;
+                      document.body.appendChild(replacement);
+                      replacement.remove();
+                    });
+                    """
+                )
+            }
+        }
+    }
+}
+
+private final class PreviewMediaSchemeHandler: NSObject, WKURLSchemeHandler {
+    static let scheme = "roamstory-preview-media"
+    private let media: [UUID: LocalPublishMedia]
+
+    init(media: [UUID: LocalPublishMedia]) {
+        self.media = media
+    }
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        guard let url = urlSchemeTask.request.url,
+              let uuid = UUID(uuidString: url.lastPathComponent),
+              let item = media[uuid] else {
+            urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
+            return
+        }
+        let response = URLResponse(
+            url: url,
+            mimeType: item.contentType,
+            expectedContentLength: item.data.count,
+            textEncodingName: nil
+        )
+        urlSchemeTask.didReceive(response)
+        urlSchemeTask.didReceive(item.data)
+        urlSchemeTask.didFinish()
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
 }
 
 struct PublishSectionSnapshot: Encodable {
