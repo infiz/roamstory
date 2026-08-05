@@ -709,16 +709,13 @@ struct HtmlExporter {
                 "<figure class=\"block\"><img src=\"\($0)\" alt=\"Video poster frame\">\(caption(block.caption))<p class=\"meta\">Video file unavailable</p></figure>"
             } ?? "<p class=\"block meta\">Video unavailable</p>"
         case .map:
-            guard let section = block.section,
-                  let latitude = section.latitude,
-                  let longitude = section.longitude,
+            guard let latitude = block.mapLatitude,
+                  let longitude = block.mapLongitude,
                   (-90 ... 90).contains(latitude),
                   (-180 ... 180).contains(longitude) else {
                 return "<p class=\"block meta\">Map unavailable</p>"
             }
-            let locationName = section.placeName.isEmpty
-                ? (section.title.isEmpty ? "Location" : section.title)
-                : section.placeName
+            let locationName = block.mapPlaceName.isEmpty ? "Location" : block.mapPlaceName
             let latitudeText = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), latitude)
             let longitudeText = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), longitude)
             let embedURL = "https://www.google.com/maps?q=\(latitudeText)%2C\(longitudeText)&amp;z=15&amp;output=embed"

@@ -1,4 +1,5 @@
 import Combine
+import CoreLocation
 import MapKit
 import Photos
 import SwiftData
@@ -8,6 +9,14 @@ import UIKit
 private struct BlockUndoFocusTarget {
     let blockID: UUID
     let originalIndex: Int
+}
+
+private struct MapLocationPickerRequest: Identifiable {
+    let id = UUID()
+    let mapBlock: ContentBlock?
+    let initialName: String
+    let initialCoordinate: CLLocationCoordinate2D?
+    let useCurrentLocationOnAppear: Bool
 }
 
 struct SectionEditorView: View {
@@ -20,7 +29,7 @@ struct SectionEditorView: View {
     @State private var selectedInsertionIndex: Int?
     @State private var galleryBeingEdited: ContentBlock?
     @State private var mediaBeingChanged: ContentBlock?
-    @State private var isChangingMapLocation = false
+    @State private var mapLocationPickerRequest: MapLocationPickerRequest?
     @State private var photoLinkBeingEdited: ContentBlock?
     @State private var isExportingDocx = false
     @State private var isExportingHTML = false
@@ -110,7 +119,9 @@ struct SectionEditorView: View {
                                     mediaBeingChanged = block
                                     mediaPickerMode = block.type == .video ? .singleVideo : .singlePhoto
                                 },
-                                onChangeLocation: { isChangingMapLocation = true },
+                                onChangeLocation: {
+                                    changeLocation(of: block)
+                                },
                                 onEditPhotoLink: { photoLinkBeingEdited = block },
                                 onRemovePhotoLink: {
                                     markBlockChanged(block.id)
@@ -310,17 +321,21 @@ struct SectionEditorView: View {
                 section.touch()
             }
         }
-        .sheet(isPresented: $isChangingMapLocation) {
+        .sheet(item: $mapLocationPickerRequest) { request in
             MapLocationPicker(
-                initialName: section.placeName,
-                initialCoordinate: sectionCoordinate
+                initialName: request.initialName,
+                initialCoordinate: request.initialCoordinate,
+                useCurrentLocationOnAppear: request.useCurrentLocationOnAppear
             ) { name, coordinate in
-                if let mapBlock = section.orderedBlocks.first(where: { $0.type == .map }) {
+                if let mapBlock = request.mapBlock {
                     markBlockChanged(mapBlock.id)
+                    mapBlock.mapPlaceName = name
+                    mapBlock.mapLatitude = coordinate.latitude
+                    mapBlock.mapLongitude = coordinate.longitude
+                    mapBlock.mapDescription = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                } else {
+                    createMapBlock(name: name, coordinate: coordinate)
                 }
-                section.placeName = name
-                section.latitude = coordinate.latitude
-                section.longitude = coordinate.longitude
                 section.touch()
             }
         }
@@ -478,11 +493,6 @@ struct SectionEditorView: View {
         .listRowSeparator(.hidden)
     }
 
-    private var sectionCoordinate: CLLocationCoordinate2D? {
-        guard let latitude = section.latitude, let longitude = section.longitude else { return nil }
-        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-    }
-
     private func addTextBlock(_ type: BlockType) {
         let block = ContentBlock(type: type)
         modelContext.insert(block)
@@ -490,7 +500,52 @@ struct SectionEditorView: View {
     }
 
     private func addMapBlock() {
-        let block = ContentBlock(type: .map)
+        mapLocationPickerRequest = MapLocationPickerRequest(
+            mapBlock: nil,
+            initialName: "",
+            initialCoordinate: nil,
+            useCurrentLocationOnAppear: true
+        )
+    }
+
+    private func changeLocation(of block: ContentBlock) {
+        migrateLegacyMapLocationIfNeeded(block)
+        let coordinate: CLLocationCoordinate2D?
+        if let latitude = block.mapLatitude, let longitude = block.mapLongitude {
+            coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        } else {
+            coordinate = nil
+        }
+        mapLocationPickerRequest = MapLocationPickerRequest(
+            mapBlock: block,
+            initialName: block.mapPlaceName,
+            initialCoordinate: coordinate,
+            useCurrentLocationOnAppear: false
+        )
+    }
+
+    private func migrateLegacyMapLocationIfNeeded(_ block: ContentBlock) {
+        guard block.mapLatitude == nil || block.mapLongitude == nil,
+              let latitude = section.latitude,
+              let longitude = section.longitude else { return }
+        block.mapLatitude = latitude
+        block.mapLongitude = longitude
+        if block.mapPlaceName.isEmpty {
+            block.mapPlaceName = section.placeName
+        }
+        if block.mapDescription.isEmpty {
+            block.mapDescription = section.placeName
+        }
+    }
+
+    private func createMapBlock(name: String, coordinate: CLLocationCoordinate2D) {
+        let block = ContentBlock(
+            type: .map,
+            mapDescription: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            mapPlaceName: name,
+            mapLatitude: coordinate.latitude,
+            mapLongitude: coordinate.longitude
+        )
         modelContext.insert(block)
         insertBlock(block)
     }
@@ -1734,13 +1789,15 @@ private struct GalleryBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             BatchedTextField(
-                "Gallery title (optional)",
+                "Gallery Title",
                 text: $block.title,
+                axis: .vertical,
                 actionName: "Edit Gallery Title",
                 onChange: onChange
             )
             .font(.headline)
             .textInputAutocapitalization(.sentences)
+            .fixedSize(horizontal: false, vertical: true)
 
             GeometryReader { geometry in
                 ZStack(alignment: .topTrailing) {
@@ -1836,21 +1893,16 @@ private struct GalleryBlockView: View {
                 .foregroundStyle(.red)
             }
 
-            if block.orderedMediaReferences.indices.contains(captionPhotoIndex) {
+            if block.orderedMediaReferences.indices.contains(captionPhotoIndex),
+               !block.orderedMediaReferences[captionPhotoIndex].caption.isEmpty {
                 let selectedReference = block.orderedMediaReferences[captionPhotoIndex]
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Photo \(captionPhotoIndex + 1) caption")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    BatchedTextField(
-                        "Add a caption",
-                        text: Bindable(selectedReference).caption,
-                        axis: .vertical,
-                        actionName: "Edit Photo Caption",
-                        onChange: onChange
-                    )
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    Text(selectedReference.caption)
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 }
             }
 
@@ -2642,13 +2694,6 @@ private struct GalleryEditorView: View {
                                 .lineLimit(3)
                             }
                             Spacer()
-                            Image(systemName: "line.3.horizontal")
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 4)
-                                .contentShape(Rectangle())
-                                .draggable(reference.id.uuidString)
-                                .accessibilityLabel("Move photo")
-                                .accessibilityHint("Drag to another photo to reorder")
                             Menu {
                                 Button {
                                     referenceBeingChanged = reference
@@ -2667,14 +2712,11 @@ private struct GalleryEditorView: View {
                             }
                             .accessibilityLabel("Photo actions")
                         }
-                        .dropDestination(for: String.self) { items, _ in
-                            guard let sourceValue = items.first,
-                                  let sourceID = UUID(uuidString: sourceValue) else { return false }
-                            return movePhoto(sourceID: sourceID, before: reference.id)
-                        }
                     }
+                    .onMove(perform: movePhotos)
                 }
             }
+            .environment(\.editMode, .constant(.active))
             .navigationTitle("Gallery Photos")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -2743,20 +2785,13 @@ private struct GalleryEditorView: View {
         referenceBeingChanged = nil
     }
 
-    @discardableResult
-    private func movePhoto(sourceID: UUID, before targetID: UUID) -> Bool {
-        guard sourceID != targetID else { return false }
+    private func movePhotos(from source: IndexSet, to destination: Int) {
         var ordered = block.orderedMediaReferences
-        guard let sourceIndex = ordered.firstIndex(where: { $0.id == sourceID }),
-              let targetIndex = ordered.firstIndex(where: { $0.id == targetID }) else { return false }
-        let movingPhoto = ordered.remove(at: sourceIndex)
-        let adjustedTarget = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
-        ordered.insert(movingPhoto, at: adjustedTarget)
+        ordered.move(fromOffsets: source, toOffset: destination)
         for (index, reference) in ordered.enumerated() {
             reference.sortIndex = index
         }
         onChange()
-        return true
     }
 
     private func removePendingPhoto() {
@@ -2783,13 +2818,12 @@ private struct MapBlockView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let section = block.section,
-               let latitude = section.latitude,
-               let longitude = section.longitude {
+            if let latitude = block.mapLatitude,
+               let longitude = block.mapLongitude {
                 let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
                 ZStack(alignment: .topTrailing) {
                     Map(position: $position) {
-                        Marker(section.placeName.isEmpty ? section.title : section.placeName, coordinate: coordinate)
+                        Marker(block.mapPlaceName.isEmpty ? "Location" : block.mapPlaceName, coordinate: coordinate)
                     }
                     .mapControls {
                         MapCompass()
@@ -3094,6 +3128,7 @@ struct EditSectionView: View {
 private struct MapLocationPicker: View {
     @Environment(\.dismiss) private var dismiss
 
+    @StateObject private var currentLocationProvider = CurrentLocationProvider()
     @State private var searchText = ""
     @State private var searchResults: [LocationSearchResult] = []
     @State private var selectedName: String
@@ -3101,15 +3136,16 @@ private struct MapLocationPicker: View {
     @State private var position: MapCameraPosition
     @State private var isSearching = false
 
-    private let initialCoordinate: CLLocationCoordinate2D?
+    private let useCurrentLocationOnAppear: Bool
     let onSelect: (String, CLLocationCoordinate2D) -> Void
 
     init(
         initialName: String,
         initialCoordinate: CLLocationCoordinate2D?,
+        useCurrentLocationOnAppear: Bool = false,
         onSelect: @escaping (String, CLLocationCoordinate2D) -> Void
     ) {
-        self.initialCoordinate = initialCoordinate
+        self.useCurrentLocationOnAppear = useCurrentLocationOnAppear
         _selectedName = State(initialValue: initialName)
         _selectedCoordinate = State(initialValue: initialCoordinate)
         let region = MKCoordinateRegion(
@@ -3129,7 +3165,7 @@ private struct MapLocationPicker: View {
                 if !searchResults.isEmpty {
                     List(searchResults) { result in
                         Button {
-                            select(result)
+                            selectAndFinish(result)
                         } label: {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(result.name)
@@ -3168,27 +3204,22 @@ private struct MapLocationPicker: View {
                             reverseGeocode(coordinate)
                         }
 
-                        if let targetCoordinate = selectedCoordinate ?? initialCoordinate {
-                            Button {
-                                withAnimation(.easeInOut) {
-                                    position = .camera(MapCamera(
-                                        centerCoordinate: targetCoordinate,
-                                        distance: 3000,
-                                        heading: 0,
-                                        pitch: 0
-                                    ))
-                                }
-                            } label: {
-                                Image(systemName: "location.north.line.fill")
-                                    .font(.system(size: 15, weight: .bold))
-                                    .foregroundStyle(.primary)
-                                    .padding(10)
-                                    .background(.ultraThinMaterial, in: Circle())
-                                    .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
+                        Button {
+                            if let location = currentLocationProvider.location {
+                                selectCurrentLocation(location)
+                            } else {
+                                currentLocationProvider.requestCurrentLocation()
                             }
-                            .padding(12)
-                            .accessibilityLabel("Recenter map on location and face north")
+                        } label: {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.primary)
+                                .padding(10)
+                                .background(.ultraThinMaterial, in: Circle())
+                                .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
                         }
+                        .padding(12)
+                        .accessibilityLabel("Go to my current location")
                     }
                 }
 
@@ -3214,6 +3245,14 @@ private struct MapLocationPicker: View {
             .onSubmit(of: .search) { search() }
             .onChange(of: searchText) { _, newValue in
                 if newValue.isEmpty { searchResults = [] }
+            }
+            .onAppear {
+                if useCurrentLocationOnAppear {
+                    currentLocationProvider.requestCurrentLocation()
+                }
+            }
+            .onReceive(currentLocationProvider.$location.compactMap { $0 }) { location in
+                selectCurrentLocation(location)
             }
             .overlay {
                 if isSearching {
@@ -3257,15 +3296,25 @@ private struct MapLocationPicker: View {
         }
     }
 
-    private func select(_ result: LocationSearchResult) {
-        selectedName = result.name
-        selectedCoordinate = result.coordinate
-        searchText = ""
+    private func selectAndFinish(_ result: LocationSearchResult) {
+        onSelect(result.name, result.coordinate)
+        dismiss()
+    }
+
+    private func selectCurrentLocation(_ location: CLLocation) {
+        let coordinate = location.coordinate
+        selectedCoordinate = coordinate
+        selectedName = "Current Location"
         searchResults = []
-        position = .region(MKCoordinateRegion(
-            center: result.coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-        ))
+        withAnimation(.easeInOut) {
+            position = .camera(MapCamera(
+                centerCoordinate: coordinate,
+                distance: 3000,
+                heading: 0,
+                pitch: 0
+            ))
+        }
+        reverseGeocode(coordinate)
     }
 
     private func reverseGeocode(_ coordinate: CLLocationCoordinate2D) {
@@ -3283,6 +3332,47 @@ private struct MapLocationPicker: View {
             }
         }
     }
+}
+
+private final class CurrentLocationProvider: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published var location: CLLocation?
+
+    private let manager = CLLocationManager()
+    private var hasRequestedLocation = false
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+    }
+
+    func requestCurrentLocation() {
+        hasRequestedLocation = true
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            manager.requestLocation()
+        case .denied, .restricted:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard hasRequestedLocation else { return }
+        if manager.authorizationStatus == .authorizedAlways ||
+            manager.authorizationStatus == .authorizedWhenInUse {
+            manager.requestLocation()
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        location = locations.last
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 }
 
 private struct LocationSearchResult: Identifiable {

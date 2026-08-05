@@ -16,6 +16,7 @@ struct PickedMedia {
     let localIdentifier: String
     let kind: MediaKind
     let originalFilename: String
+    let creationDate: Date?
 }
 
 struct MediaPickerView: UIViewControllerRepresentable {
@@ -60,10 +61,34 @@ struct MediaPickerView: UIViewControllerRepresentable {
                 guard let asset = assetsByIdentifier[identifier] else { return nil }
                 let kind: MediaKind = asset.mediaType == .video ? .video : .image
                 let filename = PHAssetResource.assetResources(for: asset).first?.originalFilename ?? ""
-                return PickedMedia(localIdentifier: identifier, kind: kind, originalFilename: filename)
+                return PickedMedia(
+                    localIdentifier: identifier,
+                    kind: kind,
+                    originalFilename: filename,
+                    creationDate: asset.creationDate
+                )
             }
 
-            parent.onComplete(selections)
+            let chronologicallyOrderedSelections: [PickedMedia]
+            if parent.mode == .photos || parent.mode == .gallery {
+                chronologicallyOrderedSelections = selections.enumerated().sorted { lhs, rhs in
+                    switch (lhs.element.creationDate, rhs.element.creationDate) {
+                    case let (lhsDate?, rhsDate?):
+                        if lhsDate == rhsDate { return lhs.offset < rhs.offset }
+                        return lhsDate < rhsDate
+                    case (_?, nil):
+                        return true
+                    case (nil, _?):
+                        return false
+                    case (nil, nil):
+                        return lhs.offset < rhs.offset
+                    }
+                }.map(\.element)
+            } else {
+                chronologicallyOrderedSelections = selections
+            }
+
+            parent.onComplete(chronologicallyOrderedSelections)
             parent.dismiss()
         }
     }

@@ -51,6 +51,8 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>RoamStory references the photos and videos you select for your travel stories.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>RoamStory uses your current location to start new map blocks nearby.</string>
 	<key>RoamStoryServerBaseURL</key>
 	<string>https://roamstory.infiz.com</string>
 	<key>UIApplicationSceneManifest</key>

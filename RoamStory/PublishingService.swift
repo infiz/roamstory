@@ -450,6 +450,9 @@ extension PublishTripRequest {
                             content: [
                                 "caption": block.caption,
                                 "mapDescription": block.mapDescription,
+                                "mapPlaceName": block.mapPlaceName,
+                                "mapLatitude": block.mapLatitude?.description ?? "",
+                                "mapLongitude": block.mapLongitude?.description ?? "",
                                 "linkURL": block.linkURLString,
                                 "fontFamily": block.fontFamily,
                                 "fontSize": String(block.fontSize),

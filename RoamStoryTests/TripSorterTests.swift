@@ -434,7 +434,10 @@ final class TripSorterTests: XCTestCase {
         included.blocks.append(ContentBlock(
             type: .map,
             sortIndex: 1,
-            mapDescription: "Morning walk"
+            mapDescription: "Morning walk",
+            mapPlaceName: "Fushimi Inari",
+            mapLatitude: 34.9671,
+            mapLongitude: 135.7727
         ))
 
         let url = try await HtmlExporter.export(

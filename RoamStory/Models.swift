@@ -316,6 +316,9 @@ final class ContentBlock {
     var attributedTextData: Data?
     var caption: String
     var mapDescription: String
+    var mapPlaceName: String = ""
+    var mapLatitude: Double?
+    var mapLongitude: Double?
     var linkURLString: String = ""
     var fontFamily: String
     var fontSize: Double
@@ -337,6 +340,9 @@ final class ContentBlock {
         attributedTextData: Data? = nil,
         caption: String = "",
         mapDescription: String = "",
+        mapPlaceName: String = "",
+        mapLatitude: Double? = nil,
+        mapLongitude: Double? = nil,
         linkURLString: String = "",
         fontFamily: String = "New York",
         fontSize: Double = 17,
@@ -354,6 +360,9 @@ final class ContentBlock {
         self.attributedTextData = attributedTextData
         self.caption = caption
         self.mapDescription = mapDescription
+        self.mapPlaceName = mapPlaceName
+        self.mapLatitude = mapLatitude
+        self.mapLongitude = mapLongitude
         self.linkURLString = linkURLString
         self.fontFamily = fontFamily
         self.fontSize = fontSize
@@ -520,6 +529,7 @@ extension ContentBlock {
         bytes += Int64(attributedTextData?.count ?? 0)
         bytes += Int64(caption.utf8.count)
         bytes += Int64(mapDescription.utf8.count)
+        bytes += Int64(mapPlaceName.utf8.count)
         bytes += Int64(linkURLString.utf8.count)
         bytes += Int64(fontFamily.utf8.count)
         bytes += mediaReferences.reduce(0) { $0 + $1.byteCount }
