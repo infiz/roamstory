@@ -214,7 +214,7 @@ struct PublishBlockSnapshot: Encodable {
     let blockType: String
     let title: String
     let plainText: String
-    let content: [String: String]
+    let content: PublishBlockContent
     let media: [PublishMediaSnapshot]
 
     enum CodingKeys: String, CodingKey {
@@ -225,6 +225,52 @@ struct PublishBlockSnapshot: Encodable {
         case plainText = "plainText"
         case content = "content"
         case media = "media"
+    }
+}
+
+struct PublishTextRun: Encodable {
+    let text: String
+    let linkURL: String?
+
+    static func make(from block: ContentBlock) -> [PublishTextRun]? {
+        guard let data = block.attributedTextData,
+              let attributed = try? NSKeyedUnarchiver.unarchivedObject(
+                ofClass: NSAttributedString.self, from: data
+              ),
+              attributed.string == block.text else { return nil }
+
+        var runs: [PublishTextRun] = []
+        attributed.enumerateAttribute(
+            .link, in: NSRange(location: 0, length: attributed.length)
+        ) { value, range, _ in
+            let address = (value as? URL)?.absoluteString ?? (value as? String)
+            runs.append(PublishTextRun(
+                text: attributed.attributedSubstring(from: range).string,
+                linkURL: address.flatMap { LinkAddress.normalizedURL(from: $0)?.absoluteString }
+            ))
+        }
+        return runs.contains(where: { $0.linkURL != nil }) ? runs : nil
+    }
+}
+
+/// Keep existing string fields compatible while adding portable, attributed link runs.
+struct PublishBlockContent: Encodable {
+    let fields: [String: String]
+    let textRuns: [PublishTextRun]?
+
+    private struct Key: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { return nil }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: Key.self)
+        for (key, value) in fields {
+            try container.encode(value, forKey: Key(stringValue: key))
+        }
+        try container.encodeIfPresent(textRuns, forKey: Key(stringValue: "textRuns"))
     }
 }
 
@@ -292,12 +338,20 @@ struct LocalPublishMedia {
                 withLocalIdentifiers: [reference.localIdentifier],
                 options: nil
             )
-            guard let asset = assets.firstObject,
-                  let resource = PHAssetResource.assetResources(for: asset).first else {
+            guard let asset = assets.firstObject else {
                 throw AuthenticationError.server(
                     "Media “\(reference.originalFilename)” is no longer available."
                 )
             }
+            let resources = PHAssetResource.assetResources(for: asset)
+            guard let resourceIndex = preferredResourceIndex(
+                types: resources.map(\.type), kind: reference.kind
+            ) else {
+                throw AuthenticationError.server(
+                    "Media “\(reference.originalFilename)” has no uploadable \(reference.kind.rawValue) resource."
+                )
+            }
+            let resource = resources[resourceIndex]
             let options = PHAssetResourceRequestOptions()
             options.isNetworkAccessAllowed = true
             let data: Data = try await withCheckedThrowingContinuation { continuation in
@@ -315,9 +369,15 @@ struct LocalPublishMedia {
                     }
                 }
             }
+            guard !data.isEmpty else {
+                throw AuthenticationError.server(
+                    "Media “\(reference.originalFilename)” could not be loaded. Please try again."
+                )
+            }
             let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
             let fileExtension = URL(fileURLWithPath: resource.originalFilename).pathExtension
-            let contentType = UTType(filenameExtension: fileExtension)?.preferredMIMEType
+            let contentType = UTType(resource.uniformTypeIdentifier)?.preferredMIMEType
+                ?? UTType(filenameExtension: fileExtension)?.preferredMIMEType
                 ?? (reference.kind == .video ? "video/quicktime" : "image/jpeg")
             let metadata = reference.kind == .image
                 ? await PhotoAssetMetadataLoader.load(reference: reference)
@@ -333,6 +393,13 @@ struct LocalPublishMedia {
             )
         }
         return result
+    }
+
+    static func preferredResourceIndex(types: [PHAssetResourceType], kind: MediaKind) -> Int? {
+        let preferredTypes: [PHAssetResourceType] = kind == .video
+            ? [.fullSizeVideo, .video]
+            : [.photo, .fullSizePhoto]
+        return preferredTypes.lazy.compactMap { types.firstIndex(of: $0) }.first
     }
 }
 
@@ -447,7 +514,7 @@ extension PublishTripRequest {
                             blockType: block.type.rawValue,
                             title: block.title,
                             plainText: block.text,
-                            content: [
+                            content: PublishBlockContent(fields: [
                                 "caption": block.caption,
                                 "mapDescription": block.mapDescription,
                                 "mapPlaceName": block.mapPlaceName,
@@ -459,7 +526,7 @@ extension PublishTripRequest {
                                 "isBold": String(block.isBold),
                                 "isItalic": String(block.isItalic),
                                 "isUnderlined": String(block.isUnderlined),
-                            ],
+                            ], textRuns: PublishTextRun.make(from: block)),
                             media: block.orderedMediaReferences.enumerated().compactMap {
                                 mediaIndex, reference in
                                 guard let mediaUuid = mediaUuids[reference.id] else { return nil }

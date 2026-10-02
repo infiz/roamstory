@@ -1,3 +1,4 @@
+import Photos
 import SwiftData
 import XCTest
 @testable import RoamStory
@@ -582,6 +583,82 @@ final class TripSorterTests: XCTestCase {
             try request(version: 2, title: "Japan").contentFingerprint(),
             try request(version: 2, title: "Kyoto").contentFingerprint()
         )
+    }
+
+    func testPublishingSelectsVideoBytesInsteadOfPhotoOrAdjustmentResources() {
+        XCTAssertEqual(LocalPublishMedia.preferredResourceIndex(
+            types: [.photo, .adjustmentData, .video], kind: .video
+        ), 2)
+        XCTAssertEqual(LocalPublishMedia.preferredResourceIndex(
+            types: [.video, .adjustmentData, .fullSizeVideo], kind: .video
+        ), 2)
+        XCTAssertNil(LocalPublishMedia.preferredResourceIndex(
+            types: [.photo, .adjustmentData], kind: .video
+        ))
+        XCTAssertEqual(LocalPublishMedia.preferredResourceIndex(
+            types: [.pairedVideo, .photo], kind: .image
+        ), 1)
+        XCTAssertNil(LocalPublishMedia.preferredResourceIndex(types: [], kind: .image))
+    }
+
+    func testPublishingPreservesNamedLinksAndDetectsLinkOnlyChanges() throws {
+        let text = "🇧🇷 Visit the park and museum."
+        let attributed = NSMutableAttributedString(string: text)
+        attributed.addAttribute(
+            .link, value: URL(string: "https://example.com/park?a=1&b=2")!,
+            range: (text as NSString).range(of: "park")
+        )
+        attributed.addAttribute(
+            .link, value: "https://example.org/museum",
+            range: (text as NSString).range(of: "museum")
+        )
+        let block = ContentBlock(type: .heading, text: text)
+        block.attributedTextData = try NSKeyedArchiver.archivedData(
+            withRootObject: attributed, requiringSecureCoding: true
+        )
+        let section = TripSection(title: "Brazil")
+        section.blocks.append(block)
+        let trip = Trip(title: "Brazil", sections: [section])
+        let request = PublishTripRequest(trip: trip, mediaUuids: [:])
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any]
+        )
+        let sections = try XCTUnwrap(object["sections"] as? [[String: Any]])
+        let blocks = try XCTUnwrap(sections[0]["blocks"] as? [[String: Any]])
+        let content = try XCTUnwrap(blocks[0]["content"] as? [String: Any])
+        let runs = try XCTUnwrap(content["textRuns"] as? [[String: String]])
+        XCTAssertEqual(runs.compactMap { $0["text"] }.joined(), text)
+        XCTAssertEqual(runs.filter { $0["linkURL"] != nil }, [
+            ["text": "park", "linkURL": "https://example.com/park?a=1&b=2"],
+            ["text": "museum", "linkURL": "https://example.org/museum"],
+        ])
+        XCTAssertEqual(content["caption"] as? String, "")
+
+        attributed.addAttribute(
+            .link, value: URL(string: "https://example.com/new-park")!,
+            range: (text as NSString).range(of: "park")
+        )
+        block.attributedTextData = try NSKeyedArchiver.archivedData(
+            withRootObject: attributed, requiringSecureCoding: true
+        )
+        XCTAssertNotEqual(
+            try request.contentFingerprint(),
+            try PublishTripRequest(trip: trip, mediaUuids: [:]).contentFingerprint()
+        )
+    }
+
+    func testPublishingIgnoresStaleOrInvalidAttributedText() throws {
+        let block = ContentBlock(type: .paragraph, text: "Current text")
+        block.attributedTextData = try NSKeyedArchiver.archivedData(
+            withRootObject: NSAttributedString(
+                string: "Old text", attributes: [.link: URL(string: "https://example.com")!]
+            ), requiringSecureCoding: true
+        )
+        XCTAssertNil(PublishTextRun.make(from: block))
+        block.attributedTextData = Data("invalid archive".utf8)
+        XCTAssertNil(PublishTextRun.make(from: block))
+        block.attributedTextData = nil
+        XCTAssertNil(PublishTextRun.make(from: block))
     }
 
     func testPublishingRequestIncludesOnlySelectedSections() throws {

@@ -3,7 +3,26 @@
 A writing-first iOS travel journal for combining long-form stories with photos, galleries, video, and travel context.
 
 See the [product requirements and technical design](docs/PRODUCT_REQUIREMENTS_AND_DESIGN.md).
+See [App Store screenshots and submission page URLs](AppStoreScreenshots/README.md).
 API models must follow the [JSON API conventions](docs/JSON_API_CONVENTIONS.md).
+
+## App Store screenshots
+
+The screenshots follow the sibling VocabHero project's `AppStoreScreenshots`
+layout and promotional style, using the saved **Brazil, river to river** journey.
+
+| Device | Native captures | Submission images | Size |
+| --- | --- | --- | --- |
+| iPhone | [Raw](AppStoreScreenshots/iPhone/Raw/) | [Promotional](AppStoreScreenshots/iPhone/Promotional/) | 1284 × 2778 |
+| iPad | [Raw](AppStoreScreenshots/iPad/Raw/) | [Promotional](AppStoreScreenshots/iPad/Promotional/) | 2064 × 2752 |
+
+Each device has seven numbered submission PNGs. The source photos, journey JSON,
+and illustrated journal are retained in [Brazil2026](AppStoreScreenshots/Assets/Brazil2026/).
+See the [capture and regeneration instructions](AppStoreScreenshots/README.md).
+
+![RoamStory iPhone App Store screenshot preview](AppStoreScreenshots/contact-sheet.png)
+
+[View the iPad preview](AppStoreScreenshots/contact-sheet-ipad.png).
 
 ## Current implementation
 

@@ -41,6 +41,13 @@ struct PhotoAssetMetadata: Equatable {
 
 enum PhotoAssetMetadataLoader {
     static func load(reference: MediaReference) async -> PhotoAssetMetadata? {
+#if DEBUG
+        if let image = await AppStoreScreenshotFixture.image(for: reference.localIdentifier) {
+            return PhotoAssetMetadata(takenAt: nil, byteCount: nil,
+                                      pixelWidth: Int(image.size.width * image.scale),
+                                      pixelHeight: Int(image.size.height * image.scale))
+        }
+#endif
         guard await PhotoLibraryAccess.isAuthorized() else { return nil }
         let result = PHAsset.fetchAssets(
             withLocalIdentifiers: [reference.localIdentifier],
@@ -189,6 +196,14 @@ private enum PhotoThumbnailCache {
 }
 
 struct PhotoAssetView: View {
+#if DEBUG
+    @MainActor
+    static func seedScreenshotImage(_ image: UIImage, identifier: String) {
+        for fit in ["fit", "fill"] {
+            PhotoThumbnailCache.images.setObject(image, forKey: "\(identifier)|\(fit)" as NSString)
+        }
+    }
+#endif
     let reference: MediaReference
     var showVideoBadge = false
     var fitEntireImage = false

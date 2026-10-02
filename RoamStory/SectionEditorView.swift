@@ -39,6 +39,7 @@ struct SectionEditorView: View {
     @State private var pendingUndoFocusTarget: BlockUndoFocusTarget?
     @State private var undoFocusTargets: [BlockUndoFocusTarget?] = []
     @State private var redoFocusTargets: [BlockUndoFocusTarget?] = []
+    @State private var isPreparingHistoryAction = false
     @State private var isPerformingHistoryAction = false
     @State private var scrollTargetBlockID: UUID?
     @State private var highlightedBlockID: UUID?
@@ -401,17 +402,33 @@ struct SectionEditorView: View {
 
     private var canUndo: Bool {
         _ = undoStateVersion
-        return sectionUndoManager.canUndo
+        return !isPreparingHistoryAction && !isPerformingHistoryAction && sectionUndoManager.canUndo
     }
 
     private var canRedo: Bool {
         _ = undoStateVersion
-        return sectionUndoManager.canRedo
+        return !isPreparingHistoryAction && !isPerformingHistoryAction && sectionUndoManager.canRedo
     }
 
     private func undo() {
+        guard !isPreparingHistoryAction, !isPerformingHistoryAction,
+              sectionUndoManager.canUndo else { return }
+        isPreparingHistoryAction = true
         dismissKeyboard()
-        guard sectionUndoManager.canUndo else { return }
+        Task { @MainActor in
+            await Task.yield()
+            modelContext.processPendingChanges()
+            await Task.yield()
+            isPreparingHistoryAction = false
+            performUndo()
+        }
+    }
+
+    private func performUndo() {
+        guard sectionUndoManager.canUndo else {
+            refreshUndoAvailability()
+            return
+        }
         let focusTarget: BlockUndoFocusTarget? = undoFocusTargets.isEmpty
             ? nil
             : undoFocusTargets.removeLast()
@@ -426,8 +443,24 @@ struct SectionEditorView: View {
     }
 
     private func redo() {
+        guard !isPreparingHistoryAction, !isPerformingHistoryAction,
+              sectionUndoManager.canRedo else { return }
+        isPreparingHistoryAction = true
         dismissKeyboard()
-        guard sectionUndoManager.canRedo else { return }
+        Task { @MainActor in
+            await Task.yield()
+            modelContext.processPendingChanges()
+            await Task.yield()
+            isPreparingHistoryAction = false
+            performRedo()
+        }
+    }
+
+    private func performRedo() {
+        guard sectionUndoManager.canRedo else {
+            refreshUndoAvailability()
+            return
+        }
         let focusTarget: BlockUndoFocusTarget? = redoFocusTargets.isEmpty
             ? nil
             : redoFocusTargets.removeLast()
@@ -2043,6 +2076,13 @@ private struct GalleryBlockView: View {
     @MainActor
     private func refreshUnavailableReferences() async {
         let references = block.orderedMediaReferences
+#if DEBUG
+        if AppStoreScreenshotFixture.screen != nil,
+           references.allSatisfy({ AppStoreScreenshotFixture.image(for: $0.localIdentifier) != nil }) {
+            unavailableReferenceIDs = []
+            return
+        }
+#endif
         guard await PhotoLibraryAccess.isAuthorized() else {
             unavailableReferenceIDs = Set(references.map(\.id))
             return

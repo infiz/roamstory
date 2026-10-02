@@ -1,0 +1,252 @@
+{
+  "title": "Brazil, river to river",
+  "subtitle": "Manaus · Amazon · Pantanal · Iguazu",
+  "startDate": "2026-06-17",
+  "endDate": "2026-07-03",
+  "editorialNote": "Photo-based draft, not a verbatim account from the traveler. Dates cover these selected chapters, not a claim about the full trip’s departure or return. The album continues into July. Regional itinerary labels are inferred from the reviewed album sequence; exact lodges, routes, species and camera locations are not asserted.",
+  "screenshotSections": {
+    "write": "amazon",
+    "photo": "jaguar",
+    "gallery": "wildlife",
+    "map": "iguazu"
+  },
+  "sections": [
+    {
+      "key": "manaus",
+      "title": "Manaus, before the river",
+      "kind": "place",
+      "date": "2026-06-18",
+      "placeName": "Manaus, Brazil",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Our Brazil story begins in Manaus. Before the river and the wildlife, there is the city: restaurant tables, a leafy courtyard, and the pink facade of Teatro Amazonas beneath an open blue sky."
+        },
+        {
+          "type": "photo",
+          "caption": "June 18 · Teatro Amazonas, Manaus.",
+          "photos": [
+            {
+              "file": "manaus-teatro-amazonas.jpg",
+              "caption": "June 18 · Teatro Amazonas, Manaus."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": "The photographs move from streets and the square to the theater’s ornate interior. Columns, balconies, painted ceilings: there is so much to look at before the landscape becomes our main subject. This is the first chapter I want to keep, a reminder that the journey began with people and a city, not only with animals."
+        }
+      ]
+    },
+    {
+      "key": "amazon",
+      "title": "Room to slow down",
+      "kind": "activity",
+      "date": "2026-06-20",
+      "placeName": "Amazon region, Brazil",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The river fills almost the entire frame. A small head breaks the surface; behind it, a dark strip of forest meets the blue sky. After Manaus, the photographs begin to leave room for water, trees, and distance."
+        },
+        {
+          "type": "quote",
+          "text": "One small figure. A whole river around us."
+        },
+        {
+          "type": "paragraph",
+          "text": "I want to remember this change of scale. The city gave us buildings to look up at; here, the horizon stretches sideways. The swimming photographs from June 20 make a simple moment feel like the center of the journey."
+        },
+        {
+          "type": "photo",
+          "caption": "June 20 · A quiet frame from the Amazon river days.",
+          "photos": [
+            {
+              "file": "amazon-river.jpg",
+              "caption": "June 20 · A quiet frame from the Amazon river days."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": "Other frames from these days bring the forest closer: boat rides, birds in the branches, and animals half hidden in leaves. Together they tell the story better than a list of stops. There is the wide view, and then there are all the little things inside it."
+        }
+      ]
+    },
+    {
+      "key": "caiman",
+      "title": "Eyes at the waterline",
+      "kind": "natureAndWildlife",
+      "date": "2026-06-24",
+      "placeName": "Pantanal, Brazil",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Among the floating green leaves, two eyes rise just above the water. The caiman is almost part of the surface. This is the Pantanal photograph that makes me look twice."
+        },
+        {
+          "type": "photo",
+          "caption": "June 24 · A caiman, nearly hidden among the floating plants.",
+          "photos": [
+            {
+              "file": "pantanal-caiman.jpg",
+              "caption": "June 24 · A caiman, nearly hidden among the floating plants."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": "The frame rewards patience: first the plants, then the eyes, then the shape of the head. It belongs beside the broad river photograph from a few days earlier. One image asks us to step back; this one asks us to notice what is right in front of us."
+        }
+      ]
+    },
+    {
+      "key": "wildlife",
+      "title": "An afternoon in feathers",
+      "kind": "natureAndWildlife",
+      "date": "2026-06-24",
+      "placeName": "Pantanal, Brazil",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "On June 24, the camera moves from a raptor’s steady gaze to a bird tucked into the reeds, then to a red head and pale bill. These are three very different portraits from the same afternoon."
+        },
+        {
+          "type": "gallery",
+          "caption": "June 24 · Small details from a wildlife afternoon.",
+          "photos": [
+            {
+              "file": "pantanal-hawk.jpg",
+              "caption": "A steady gaze, framed by brown and cream feathers."
+            },
+            {
+              "file": "pantanal-reeds.jpg",
+              "caption": "A small bird perched among the reeds."
+            },
+            {
+              "file": "pantanal-redheaded-bird.jpg",
+              "caption": "A flash of red, with every feather in focus."
+            },
+            {
+              "file": "pantanal-caiman.jpg",
+              "caption": "Eyes just above a floating carpet of green."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": "Each portrait holds a little of its surroundings: reeds, blurred green backgrounds, and water plants. Seen together, they turn an afternoon into more than a collection of sightings. The animals become the details through which I remember the landscape."
+        }
+      ]
+    },
+    {
+      "key": "jaguar",
+      "title": "A face in the branches",
+      "kind": "natureAndWildlife",
+      "date": "2026-06-27",
+      "placeName": "Pantanal, Brazil",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A jaguar looks around a pale tree trunk, its face framed by bark and leaves. On June 27, the river photographs bring us this close view of the Pantanal’s most striking animal."
+        },
+        {
+          "type": "photo",
+          "caption": "June 27 · A jaguar beside the river.",
+          "photos": [
+            {
+              "file": "pantanal-jaguar.jpg",
+              "caption": "A jaguar looks around the trunk, framed by the riverbank trees."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": "The surrounding frames show the wider scene: boats on the water, capybaras along the bank, and the tree rising above the river. This portrait belongs in that sequence. It brings the landscape into focus through one pair of eyes."
+        }
+      ]
+    },
+    {
+      "key": "iguazu",
+      "title": "Iguazu, water in motion",
+      "kind": "place",
+      "date": "2026-07-02",
+      "placeName": "Iguazu Falls",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "By July 2, the water has changed character. At Iguazu, broad brown curtains fall past green islands and disappear into white mist. The forest is still here, but the river no longer sits quietly in the frame."
+        },
+        {
+          "type": "map",
+          "mapPlaceName": "Iguazu Falls",
+          "mapLatitude": -25.6953,
+          "mapLongitude": -54.4367,
+          "mapDescription": "July 2 · Iguazu Falls, where the river becomes a wall of water and mist."
+        },
+        {
+          "type": "photo",
+          "caption": "July 2 · Water and mist at Iguazu Falls.",
+          "photos": [
+            {
+              "file": "iguazu-falls.jpg",
+              "caption": "July 2 · Water and mist at Iguazu Falls."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": "The boardwalk photographs put people beside that enormous moving landscape. Nearby, coatis fill another set of frames. The final chapter holds both scales again: the falls that take over the view, and the small animals that bring our attention back to the path."
+        }
+      ]
+    },
+    {
+      "key": "aerial",
+      "title": "The river, seen from above",
+      "kind": "activity",
+      "date": "2026-07-03",
+      "placeName": "Iguazu Falls",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The next day, the aerial photographs pull us back from the falls. From above, the brown river spreads around green islands before tipping into a long white curve of water and mist."
+        },
+        {
+          "type": "photo",
+          "caption": "July 3 · Iguazu Falls from above.",
+          "photos": [
+            {
+              "file": "iguazu-aerial.jpg",
+              "caption": "The river and the falls in one wide view."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": "After the close view from the boardwalk, this is a different way to understand the same place. The forest, the river, and the drop finally fit into a single frame. It is a fitting last landscape for a journey that kept changing the scale of what we could see."
+        }
+      ]
+    },
+    {
+      "key": "reflection",
+      "title": "What the water connects",
+      "kind": "reflection",
+      "date": "2026-07-03",
+      "placeName": "Brazil journey",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Looking through the album, water becomes the thread. There is the open river around a swimmer, the still surface around a caiman, the riverbank beneath a jaguar, and finally Iguazu’s falls. The photographs do not all show the same Brazil, and that is what gives the journey its shape."
+        },
+        {
+          "type": "quote",
+          "text": "From a quiet horizon to a frame full of falling water."
+        },
+        {
+          "type": "paragraph",
+          "text": "I want to keep the city at the beginning, too: the theater, the streets, the people at the table. Those photographs give the wildlife and landscapes a human beginning. Together, the chapters hold more than our best pictures. They hold the way one place led us toward the next."
+        }
+      ]
+    }
+  ]
+}

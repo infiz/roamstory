@@ -61,3 +61,8 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Regenerable screenshot capture build logs
+AppStoreScreenshots/capture-build.log
+AppStoreScreenshots/RoamStory-AppStore-Submission.zip
+**/__pycache__/

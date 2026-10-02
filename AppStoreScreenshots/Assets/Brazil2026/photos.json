@@ -1,0 +1,132 @@
+{
+  "source": "JPEG exports from Jimmy’s Apple Photos album, selected October 1, 2026",
+  "processing": "Orientation applied, maximum edge 2400px, JPEG quality 94, metadata omitted. Capture dates and original filenames retained here. Camera offsets are preserved as recorded, not treated as verified travel locations.",
+  "photos": [
+    {
+      "file": "manaus-teatro-amazonas.jpg",
+      "sourceFilename": "20260618-154812-2.jpeg",
+      "sourceAlbum": "2026-06 Brazil",
+      "cameraDateTime": "2026:06:18 15:48:12",
+      "cameraUTCOffset": "-04:00",
+      "description": "Teatro Amazonas, Manaus",
+      "dimensions": [
+        2400,
+        1601
+      ],
+      "sourceExportSHA256": "f92fcd00630660ccc94320ba0277461f2d5bade4a39f1ded166b277c32c3e019",
+      "sha256": "e5a642acb67dd5f549f7ee138119a6e8d17ce3c45ab1043015d092380204fdcd"
+    },
+    {
+      "file": "amazon-river.jpg",
+      "sourceFilename": "20260620-175050-2.jpeg",
+      "sourceAlbum": "2026-06 Brazil",
+      "cameraDateTime": "2026:06:20 17:50:50",
+      "cameraUTCOffset": "-03:00",
+      "description": "A swimmer on a broad river beside the forest",
+      "dimensions": [
+        2400,
+        1600
+      ],
+      "sourceExportSHA256": "6d99bed7d8f9b6c81a65580a19868a3f18abf43edbe78cf0f65a3059d2ceae65",
+      "sha256": "32c761cdf7ee27340a4dedc8ebbb29e61f501c4e9cf0da12795f543fdc991372"
+    },
+    {
+      "file": "pantanal-hawk.jpg",
+      "sourceFilename": "20260624-142149-3.jpeg",
+      "sourceAlbum": "2026-06 Brazil",
+      "cameraDateTime": "2026:06:24 14:21:49",
+      "cameraUTCOffset": "-04:00",
+      "description": "A brown and cream raptor in close portrait",
+      "dimensions": [
+        2179,
+        2400
+      ],
+      "sourceExportSHA256": "6862b579e90ad7e072859dc90fb475c267de6506735e340cbb2d62abbbe4dcbc",
+      "sha256": "76ea9824a591c0527d5f678d0b4d8c4221e0b77bc01e8fb62151d4f923a26946"
+    },
+    {
+      "file": "pantanal-caiman.jpg",
+      "sourceFilename": "20260624-143128-2.jpeg",
+      "sourceAlbum": "2026-06 Brazil",
+      "cameraDateTime": "2026:06:24 14:31:28",
+      "cameraUTCOffset": "-04:00",
+      "description": "Caiman eyes among floating green plants",
+      "dimensions": [
+        2400,
+        1600
+      ],
+      "sourceExportSHA256": "c4068e9a152f9cc82149cbe33426da31a0d22bbc9cdff8f26a018b69f0fd48ae",
+      "sha256": "12daae910d9e538c223126a819c68a6af39829ef44bf3aeb2ff9e775eedc67d6"
+    },
+    {
+      "file": "pantanal-reeds.jpg",
+      "sourceFilename": "20260624-145907.jpeg",
+      "sourceAlbum": "2026-06 Brazil",
+      "cameraDateTime": "2026:06:24 14:59:07",
+      "cameraUTCOffset": "-04:00",
+      "description": "A small black and white bird among reeds",
+      "dimensions": [
+        1903,
+        2324
+      ],
+      "sourceExportSHA256": "e566ebaaa2c4035246671aa811e8627e1429b9a336558504dfb0bb3b6f1df789",
+      "sha256": "f78772fda440d5455593119e168063777ecb22287af765dab788b6bcaeda859c"
+    },
+    {
+      "file": "pantanal-redheaded-bird.jpg",
+      "sourceFilename": "20260624-150322-5.jpeg",
+      "sourceAlbum": "2026-06 Brazil",
+      "cameraDateTime": "2026:06:24 15:03:22",
+      "cameraUTCOffset": "-04:00",
+      "description": "A red-headed bird with a pale bill",
+      "dimensions": [
+        2400,
+        2390
+      ],
+      "sourceExportSHA256": "6e9fc505247211904eb4e2f4a8f5a0dd9f721e2404d14396ae3c09e54efd4a0a",
+      "sha256": "2147f2795116f31f37e36b766a8f88f67178b2cb09d3e7cd18e2cf8dd6822c1e"
+    },
+    {
+      "file": "iguazu-falls.jpg",
+      "sourceFilename": "20260702-112308-2.jpeg",
+      "sourceAlbum": "2026-06 Brazil",
+      "cameraDateTime": "2026:07:02 11:23:08",
+      "cameraUTCOffset": "-04:00",
+      "description": "Broad curtains of brown water and mist at Iguazu Falls",
+      "dimensions": [
+        2400,
+        1600
+      ],
+      "sourceExportSHA256": "d038e177566d6f8c563bc0e2afd1bcfc724e4f4a62ecb75c55c8536d143801fe",
+      "sha256": "d2134628d439a49d7a0be7a1c70bb041cb63e87aaeed6c7a24b4e36526235e04"
+    },
+    {
+      "file": "pantanal-jaguar.jpg",
+      "sourceFilename": "20260627-145548.jpeg",
+      "sourceAlbum": "2026-06 Brazil",
+      "cameraDateTime": "2026:06:27 14:55:48",
+      "cameraUTCOffset": "-04:00",
+      "description": "A jaguar looking around a tree trunk beside the river",
+      "dimensions": [
+        847,
+        1022
+      ],
+      "sourceExportSHA256": "b85da4ed06760b4813165b80344a222f62c5bb14c1ed4ba01a6c33605d4cd3df",
+      "sha256": "20812b169a148399674d41c8cbf58d707024b7fb25535886b30a411cb454c662"
+    },
+    {
+      "file": "iguazu-aerial.jpg",
+      "sourceFilename": "20260703-110001.jpeg",
+      "sourceAlbum": "2026-06 Brazil",
+      "cameraDateTime": "2026:07:03 11:00:01",
+      "cameraUTCOffset": "-04:00",
+      "description": "Iguazu Falls viewed from above, with brown water, islands and mist",
+      "dimensions": [
+        2400,
+        1693
+      ],
+      "sourceExportSHA256": "87757597b1437e91b28900a32bc706c3ae7cfe0ca1e0e4ace51e750f75d71d25",
+      "sha256": "67afb54988f715cb260c86c76d5eef8459dc783b03fb3f2a1de208b430b5f531"
+    }
+  ]
+}
