@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+#if DEBUG
+        if AppStoreScreenshotFixture.screen != nil { return true }
+#endif
         guard Bundle.main.hasConfiguredFacebookLogin else {
             return true
         }
@@ -69,12 +72,25 @@ private struct ModelContainerLoadingView: View {
     @State private var modelContainer: ModelContainer?
     @State private var loadErrorMessage: String?
     @State private var isLoading = true
+#if DEBUG
+    @State private var screenshotFixture: AppStoreScreenshotFixture?
+#endif
 
     var body: some View {
         Group {
             if let modelContainer {
+#if DEBUG
+                if let screenshotFixture, let screen = AppStoreScreenshotFixture.screen {
+                    AppStoreScreenshotView(fixture: screenshotFixture, screen: screen)
+                        .modelContainer(modelContainer)
+                } else {
+                    TripsListView()
+                        .modelContainer(modelContainer)
+                }
+#else
                 TripsListView()
                     .modelContainer(modelContainer)
+#endif
             } else if let loadErrorMessage {
                 ContentUnavailableView {
                     Label("Unable to Open RoamStory", systemImage: "externaldrive.badge.exclamationmark")
@@ -113,6 +129,15 @@ private struct ModelContainerLoadingView: View {
         await Task.yield()
 
         do {
+#if DEBUG
+            if AppStoreScreenshotFixture.screen != nil {
+                let fixture = try AppStoreScreenshotFixture.make()
+                screenshotFixture = fixture
+                modelContainer = fixture.container
+                isLoading = false
+                return
+            }
+#endif
             modelContainer = try await Task.detached(priority: .userInitiated) {
                 let schema = Schema([
                     Trip.self,

@@ -42,6 +42,12 @@ struct SetupView: View {
 
                 authenticationSections
 
+                Section("Help & Legal") {
+                    Link("Support", destination: URL(string: "https://apps.infiz.com/roamstory/support/")!)
+                    Link("Privacy Policy", destination: URL(string: "https://apps.infiz.com/roamstory/privacy/")!)
+                    Link("Terms of Use", destination: URL(string: "https://apps.infiz.com/roamstory/terms/")!)
+                }
+
                 if authentication.isWorking {
                     Section {
                         HStack {
