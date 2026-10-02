@@ -204,9 +204,8 @@ struct DocxExporter {
             }
             return result
         case .map:
-            guard let section = block.section else { return paragraph("[Map unavailable]") }
-            var result = heading(section.placeName.isEmpty ? "Location" : section.placeName, level: 3)
-            if let latitude = section.latitude, let longitude = section.longitude {
+            var result = heading(block.mapPlaceName.isEmpty ? "Location" : block.mapPlaceName, level: 3)
+            if let latitude = block.mapLatitude, let longitude = block.mapLongitude {
                 result += paragraph("Coordinates: \(latitude.formatted()), \(longitude.formatted())")
             }
             if !block.mapDescription.isEmpty {

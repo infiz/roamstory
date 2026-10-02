@@ -23,6 +23,8 @@ struct TripEditorView: View {
     @State private var isSelectingPublishSections = false
     @State private var publishedSectionLink: TripSection?
     @State private var sitePreview: PublishedSitePreview?
+    @State private var tripDataSize: String?
+    @State private var sectionDataSizes: [UUID: String] = [:]
 
     var body: some View {
         List {
@@ -33,12 +35,7 @@ struct TripEditorView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text(trip.formattedDataSize)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.secondary.opacity(0.12), in: Capsule())
+                DataSizeBadge(dataSize: tripDataSize)
             }
             .listRowSeparator(.hidden)
 
@@ -114,13 +111,7 @@ struct TripEditorView: View {
                                             .fixedSize(horizontal: false, vertical: true)
                                         HStack(spacing: 6) {
                                             SectionBlockSummary(section: section)
-                                            Text(section.formattedDataSize)
-                                                .font(.caption2.weight(.medium))
-                                                .foregroundStyle(.secondary)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(.secondary.opacity(0.12), in: Capsule())
-                                                .fixedSize()
+                                            DataSizeBadge(dataSize: sectionDataSizes[section.id])
                                         }
                                     }
                                     Spacer(minLength: 0)
@@ -202,13 +193,7 @@ struct TripEditorView: View {
                         .font(.headline)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Text(trip.formattedDataSize)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.secondary.opacity(0.12), in: Capsule())
-                        .fixedSize()
+                    DataSizeBadge(dataSize: tripDataSize)
                 }
             }
             ToolbarItemGroup(placement: .primaryAction) {
@@ -396,6 +381,20 @@ struct TripEditorView: View {
             }
                 .interactiveDismissDisabled()
         }
+        .task(id: trip.modifiedAt) {
+            await loadDataSizeSummaries()
+        }
+    }
+
+    @MainActor
+    private func loadDataSizeSummaries() async {
+        try? await Task.sleep(for: .milliseconds(450))
+        guard !Task.isCancelled else { return }
+        let sections = trip.orderedSections
+        sectionDataSizes = Dictionary(
+            uniqueKeysWithValues: sections.map { ($0.id, $0.formattedDataSize) }
+        )
+        tripDataSize = trip.formattedDataSize
     }
 
     private func moveSections(from source: IndexSet, to destination: Int) {
@@ -1018,6 +1017,22 @@ private struct SectionNavigationButtonStyle: ButtonStyle {
     }
 }
 
+private struct DataSizeBadge: View {
+    let dataSize: String?
+
+    var body: some View {
+        Text(dataSize ?? "000 KB")
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.secondary.opacity(0.12), in: Capsule())
+            .fixedSize()
+            .redacted(reason: dataSize == nil ? .placeholder : [])
+            .accessibilityLabel(dataSize.map { "Data size \($0)" } ?? "Calculating data size")
+    }
+}
+
 private struct SectionLoadingDestination: View {
     let section: TripSection
     @State private var isReady = false
@@ -1067,7 +1082,8 @@ private struct SectionBlockSummary: View {
 
     @MainActor
     private func loadBlockCount() async {
-        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(450))
+        guard !Task.isCancelled else { return }
         let sectionID = section.id
         let descriptor = FetchDescriptor<ContentBlock>(
             predicate: #Predicate { block in
@@ -1085,19 +1101,15 @@ private struct CreateSectionView: View {
 
     @State private var title = ""
     @State private var kind = SectionKind.activity
-    @State private var hasDateRange = false
+    @State private var hasDateRange = true
     @State private var startDate: Date
     @State private var endDate: Date
 
     init(trip: Trip) {
         self.trip = trip
-        let proposedStart = trip.startDate ?? DateHourRangeEditor.defaultStart
-        _startDate = State(initialValue: proposedStart)
-        _endDate = State(
-            initialValue: trip.endDate
-                ?? Calendar.autoupdatingCurrent.date(byAdding: .hour, value: 1, to: proposedStart)
-                ?? proposedStart.addingTimeInterval(3_600)
-        )
+        let localStartOfToday = Calendar.autoupdatingCurrent.startOfDay(for: .now)
+        _startDate = State(initialValue: localStartOfToday)
+        _endDate = State(initialValue: localStartOfToday)
     }
 
     var body: some View {
@@ -1224,6 +1236,10 @@ struct DateHourRangeEditor: View {
 
     var body: some View {
         DateHourRow(label: "Starts", date: $startDate)
+            .onChange(of: startDate) { previousStart, newStart in
+                let existingGap = endDate.timeIntervalSince(previousStart)
+                endDate = newStart.addingTimeInterval(existingGap)
+            }
         DateHourRow(label: "Ends", date: $endDate)
         if endDate < startDate {
             Label("End must be after start", systemImage: "exclamationmark.triangle.fill")
